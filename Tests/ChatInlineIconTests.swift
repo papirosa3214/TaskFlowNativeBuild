@@ -1,51 +1,49 @@
 import XCTest
 
-/// Иконка в строке текста: низ — на базовой линии, размер — с заглавную букву.
+/// Иконка в строке текста: крупная, как буква с выносными элементами, и
+/// по центру строчных букв, а не над ними.
 ///
-/// Владелец 11.11.2026: «чипы у ссылок соразмерны тексту и не увеличивают
-/// высоту строки». Картинка внутри `Text` прижимается низом к базовой линии,
-/// поэтому её высота целиком уходит вверх — канва обязана быть не выше
-/// подъёма шрифта (`ascent`), иначе строка становится выше обычной.
-/// Геометрия вынесена в чистую функцию, поэтому проверяется здесь.
+/// Владелец 11.11.2026: «ярлычки микроскопические, разобрать с первого раза
+/// не получается» и «листик должен начинаться там, где буковка, и стоять
+/// ровно, а не выше». Иконка размером с кегль опускается ниже базовой линии
+/// (`baselineOffset`), так что её центр совпадает с серединой заглавной буквы.
+/// Строку она при этом не раздвигает: верх — не выше подъёма шрифта, низ —
+/// не ниже его спуска. Геометрия — чистая функция, поэтому проверяется здесь.
 final class ChatInlineIconTests: XCTestCase {
-    private let ascent: CGFloat = 11.5
-    private let capHeight: CGFloat = 10.5
+    private let size: CGFloat = 17
+    private let ascent: CGFloat = 16.2
+    private let descent: CGFloat = 4.1
+    private let capHeight: CGFloat = 12
 
-    /// Строка не растёт: канва иконки не выше подъёма шрифта.
-    @objc func testCanvasDoesNotGrowLine() {
-        let layout = ChatInlineIcon.layout(pointSize: 15, ascent: ascent, capHeight: capHeight)
-        XCTAssertLessThanOrEqual(layout.canvas.height, ascent + 0.001)
+    private var layout: ChatInlineIcon.Layout {
+        ChatInlineIcon.layout(pointSize: size, ascent: ascent, descent: descent, capHeight: capHeight)
     }
 
-    @objc func testIconSitsOnBaseline() {
-        let layout = ChatInlineIcon.layout(pointSize: 15, ascent: ascent, capHeight: capHeight)
-        // Низ иконки — ровно на базовой линии (низ канвы минус высота иконки).
-        XCTAssertEqual(layout.icon.maxY, layout.canvas.height, accuracy: 0.001)
-        XCTAssertEqual(layout.icon.minY, layout.canvas.height - layout.icon.height, accuracy: 0.001)
+    /// Крупная: не меньше 85% кегля (была с заглавную букву — 70%).
+    @objc func testIconIsLarge() {
+        XCTAssertGreaterThanOrEqual(layout.icon.height, size * 0.85)
     }
 
-    /// Размер — с заглавную букву соседнего шрифта, не константа.
-    @objc func testIconSizeMatchesCapHeight() {
-        let layout = ChatInlineIcon.layout(pointSize: 15, ascent: ascent, capHeight: capHeight)
-        XCTAssertEqual(layout.icon.height, capHeight, accuracy: 1)
+    /// Центр иконки — на середине заглавной буквы.
+    @objc func testIconCenteredOnCapHeight() {
+        let center = layout.icon.height / 2 + layout.baselineOffset
+        XCTAssertEqual(center, capHeight / 2, accuracy: 0.5)
     }
 
-    @objc func testIconIsSquare() {
-        let layout = ChatInlineIcon.layout(pointSize: 15, ascent: ascent, capHeight: capHeight)
+    /// Строка не растёт ни вверх, ни вниз.
+    @objc func testIconStaysInsideLine() {
+        XCTAssertLessThanOrEqual(layout.icon.height + layout.baselineOffset, ascent + 0.001)
+        XCTAssertGreaterThanOrEqual(layout.baselineOffset, -descent - 0.001)
+    }
+
+    @objc func testIconIsSquareAndFillsCanvas() {
         XCTAssertEqual(layout.icon.width, layout.icon.height, accuracy: 0.001)
+        XCTAssertEqual(layout.canvas.height, layout.icon.height, accuracy: 0.001)
     }
 
     @objc func testIconHeightFollowsPointSize() {
-        let small = ChatInlineIcon.layout(pointSize: 12, ascent: 9, capHeight: 8)
-        let large = ChatInlineIcon.layout(pointSize: 20, ascent: 15, capHeight: 14)
+        let small = ChatInlineIcon.layout(pointSize: 12, ascent: 11.4, descent: 2.9, capHeight: 8.5)
+        let large = ChatInlineIcon.layout(pointSize: 20, ascent: 19, descent: 4.8, capHeight: 14)
         XCTAssertLessThan(small.icon.height, large.icon.height)
-    }
-
-    @objc func testIconFitsInsideCanvas() {
-        for size in [11, 13, 15, 17, 20] as [CGFloat] {
-            let layout = ChatInlineIcon.layout(pointSize: size, ascent: size * 0.76, capHeight: size * 0.7)
-            XCTAssertLessThanOrEqual(layout.icon.maxX, layout.canvas.width + 0.001)
-            XCTAssertLessThanOrEqual(layout.icon.maxY, layout.canvas.height + 0.001)
-        }
     }
 }

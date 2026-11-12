@@ -4,12 +4,35 @@ import SwiftUI
 struct RoleCoordinationCard: View {
     let coordination: RoleChatCoordination
     let stop: () async throws -> Void
+    /// Раскрытие живёт у экрана (`RoleFeedExpansion`), а не в `@State`
+    /// строки: лента пересобирает строку на каждом событии обращения, и
+    /// `DisclosureGroup` сам открывался и закрывался (владелец 11.11.2026,
+    /// видео: «нездравое поведение у сообщений, которые роли шлют друг другу»).
+    var isExpanded = false
+    var onToggle: () -> Void = {}
     @State private var stopping = false
     @State private var error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: TFSpacing.sm) {
-            DisclosureGroup {
+            Button(action: onToggle) {
+                HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+                    VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                        Label(coordination.requesterName + " → " + coordination.recipientName,
+                              systemImage: "person.2")
+                        Text(coordination.activity).tfText(.meta)
+                    }
+                    // Шеврон рядом с подписью, как у пачки «Действия».
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right") // design-system-guard: ignore — раскрывающая пара, как в RoleActionGroup
+                        .tfTypeFont(size: 12, weight: .semibold)
+                        .foregroundStyle(Color.tfDim)
+                }
+                .frame(maxWidth: .infinity, minHeight: TFHitTarget.min, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(isExpanded ? "Свернуть вопрос" : "Показать вопрос")
+            if isExpanded {
                 VStack(alignment: .leading, spacing: TFSpacing.sm) {
                     Text("Вопрос").tfText(.meta)
                     RoleReplyMarkdown(text: coordination.question, serverBlocks: coordination.questionBlocks).textSelection(.enabled)
@@ -17,12 +40,6 @@ struct RoleCoordinationCard: View {
                         Text(coordination.status == "error" ? "Причина ошибки" : "Ответ").tfText(.meta)
                         RoleReplyMarkdown(text: answer, serverBlocks: coordination.answerBlocks).textSelection(.enabled)
                     }
-                }
-            } label: {
-                VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                    Label(coordination.requesterName + " → " + coordination.recipientName,
-                          systemImage: "person.2")
-                    Text(coordination.activity).tfText(.meta)
                 }
             }
             // Ответ роли виден сразу, не под раскрытием (владелец 28.10.2026:

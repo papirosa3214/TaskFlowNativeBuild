@@ -14,22 +14,40 @@ import UIKit
 /// соседних. Сама иконка — по заглавной букве (`capHeight`), а не 86% кегля.
 /// Тогда все иконки в абзаце стоят одинаково, а строка не растёт.
 enum ChatInlineIcon {
-    /// Геометрия картинки. Чистая функция — проверяется тестом на хосте.
-    /// - Returns: размер канвы и прямоугольник, куда рисовать саму иконку.
-    static func layout(pointSize: CGFloat, ascent: CGFloat, capHeight: CGFloat) -> (canvas: CGSize, icon: CGRect) {
+    /// Геометрия иконки. Чистая функция — проверяется тестом на хосте.
+    struct Layout {
+        let canvas: CGSize
+        let icon: CGRect
+        /// Сдвиг вниз от базовой линии (`Text.baselineOffset`), отрицательный.
+        let baselineOffset: CGFloat
+    }
+
+    /// Владелец 11.11.2026: «ярлычки микроскопические» и «стоят выше». Иконка —
+    /// почти в кегль (а не с заглавную букву) и опущена так, что её центр на
+    /// середине заглавной буквы. Строку не раздвигает: верх не выше подъёма
+    /// шрифта, низ не ниже спуска.
+    static func layout(pointSize: CGFloat, ascent: CGFloat, descent: CGFloat, capHeight: CGFloat) -> Layout {
         let cap = capHeight > 0 ? capHeight : pointSize * 0.7
-        let side = max(1, min(cap, max(1, ascent)).rounded())
-        let height = max(side, ascent)
-        let canvas = CGSize(width: side, height: height)
-        let icon = CGRect(x: 0, y: height - side, width: side, height: side)
-        return (canvas, icon)
+        let fit = max(1, min(pointSize * 0.92, ascent + descent))
+        var side = fit.rounded()
+        var offset = cap / 2 - side / 2
+        // Не выходить за спуск и подъём шрифта.
+        if offset < -descent { offset = -descent }
+        if side + offset > ascent { side = max(1, (ascent - offset).rounded(.down)) }
+        let canvas = CGSize(width: side, height: side)
+        return Layout(canvas: canvas, icon: CGRect(origin: .zero, size: canvas), baselineOffset: offset)
     }
 
     /// Готовая картинка под кегль и цвет текста.
-    static func image(_ icon: ChatLinkPresentation.Icon, pointSize: CGFloat, color: UIColor) -> UIImage {
+    static func layout(pointSize: CGFloat) -> Layout {
         let font = UIFont.systemFont(ofSize: pointSize)
-        let ascent = font.ascender
-        let (canvas, rect) = layout(pointSize: pointSize, ascent: ascent, capHeight: font.capHeight)
+        return layout(pointSize: pointSize, ascent: font.ascender, descent: -font.descender,
+                      capHeight: font.capHeight)
+    }
+
+    static func image(_ icon: ChatLinkPresentation.Icon, pointSize: CGFloat, color: UIColor) -> UIImage {
+        let geometry = layout(pointSize: pointSize)
+        let canvas = geometry.canvas, rect = geometry.icon
         let key = "\(identifier(icon))|\(Int(pointSize.rounded() * 10))|\(colorKey(color))" as NSString
         if let cached = cache.object(forKey: key) { return cached }
         let renderer = UIGraphicsImageRenderer(size: canvas)

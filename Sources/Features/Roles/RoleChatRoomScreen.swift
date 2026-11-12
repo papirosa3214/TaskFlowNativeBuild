@@ -180,6 +180,9 @@ struct RoleChatRoomScreen: View {
     /// пересобирает каждая смена версии и каждое переиспользование ячейки,
     /// и раскрытое сворачивалось само при прокрутке (владелец 11.11.2026).
     @StateObject private var feedExpansion = RoleFeedExpansion()
+    /// Низ ленты и верх панели ввода в координатах окна: из них нижний отступ ленты.
+    @State private var feedBottomY: CGFloat = 0
+    @State private var composerTopY: CGFloat = 0
     @State private var chatIsNearBottom = true
     /// Ключ держателя скрытия нижней панели: у каждой комнаты свой, иначе
     /// закрытие ветки от сообщения сняло бы скрытие у родительской комнаты
@@ -721,6 +724,19 @@ struct RoleChatRoomScreen: View {
         // Зазор между полем ввода и поднятой клавиатурой (владелец
         // 11.11.2026). Без клавиатуры отступ даёт полоска «домой».
         .padding(.bottom, composerFocused ? TFSpacing.sm : 0)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { composerTopY = $0 }
+    }
+
+    /// Сколько ленты закрывает панель ввода с пилюлей, плюс зазор. Меряется по
+    /// месту: панель с клавиатурой и раскрытым полем выше, без неё — ниже.
+    private var feedBottomClearance: CGFloat {
+        guard feedBottomY > 0, composerTopY > 0 else {
+            return TFSpacing.sm + TFHitTarget.min + TFSpacing.xs + 64
+        }
+        // Нижняя треть экрана свободна: текст роли кончается на двух третях
+        // высоты (владелец 11.11.2026: «две трети — нижняя граница, где
+        // оканчивается текст агента»).
+        return max(feedBottomY / 3, feedBottomY - composerTopY + TFSpacing.md)
     }
 
     private var composerNavigation: some View {
@@ -744,6 +760,11 @@ struct RoleChatRoomScreen: View {
                 contentsTargetID = id
             }
         }
+        // Внутри комнаты нижней панели вкладок нет — только на главных
+        // экранах (владелец 08.11.2026, 12.11.2026). Модификатор стоит на самом
+        // экране: на `NavigationStack` он не срабатывал, и панель висела в чате,
+        // налезая на панель ввода.
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             #if DEBUG
             if readingPreview && ProcessInfo.processInfo.environment["TASKFLOW_MEMBER_SWIPE_PREVIEW"] != "1" {
@@ -1301,12 +1322,12 @@ struct RoleChatRoomScreen: View {
             ChatFeedVirtualList(rows: rows,
                                contentKey: chat.id,
                                handle: feedScroll,
-                               // Нижняя граница ленты — над кружком «вниз»: последние
-                               // строки не уходят под поле ввода (владелец 11.11.2026).
-                               // +64: место под пилюлю над полем ввода («на 50, может
-                               // на 80 выше», владелец 11.11.2026).
+                               // Нижняя граница ленты — над панелью ввода с пилюлей, по
+                               // её настоящему верху: с клавиатурой панель выше, и
+                               // постоянный запас текст не спасал (владелец 11.11.2026:
+                               // «заходит текст, нижняя граница ушла ниже, чем надо»).
                                contentInsets: UIEdgeInsets(top: TFSpacing.sm, left: 0,
-                                                           bottom: TFSpacing.sm + TFHitTarget.min + TFSpacing.xs + 64,
+                                                           bottom: feedBottomClearance,
                                                            right: 0),
                                estimatedHeight: { id in
                                    Self.estimatedRowHeight(id: id, feedByID: feedByID,
@@ -1331,6 +1352,7 @@ struct RoleChatRoomScreen: View {
                 // фон экрана. Только .container — клавиатуру ленту по-прежнему
                 // поднимает (владелец 11.11.2026: «текст прячется под фон»).
                 .ignoresSafeArea(.container, edges: .bottom)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { feedBottomY = $0 }
                 // Нижняя панель (safeAreaBar) сама включает затухание края —
                 // полосу во всю ширину. Выключено: стекло только на элементах
                 // (владелец 11.11.2026).
@@ -2086,9 +2108,11 @@ struct RoleChatRoomScreen: View {
     @ViewBuilder
     private func messageRow(_ message: RoleChatMessage, replyExcerpts: [String: String]) -> some View {
         if let coordination = message.coordination {
-            RoleCoordinationCard(coordination: coordination) {
-                try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id)
-            }
+            let key = RoleFeedExpansionKey.coordination(message: message.id)
+            RoleCoordinationCard(coordination: coordination,
+                                 stop: { try await api.stopRoleCoordination(chatID: chat.id, messageID: message.id) },
+                                 isExpanded: feedExpansion.isExpanded(key),
+                                 onToggle: { feedExpansion.toggle(key) })
             .hintAnchor(HintAnchorID.chatCoordination)
         } else if let memoryUpdate = message.memoryUpdate {
             memoryUpdateChipRow(memoryUpdate)

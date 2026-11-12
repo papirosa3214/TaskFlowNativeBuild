@@ -225,7 +225,14 @@ struct ChatFeedVirtualList<Row: View>: UIViewRepresentable {
     func updateUIView(_ table: ChatFeedTableView, context: Context) {
         context.coordinator.parent = self
         handle.list = table
-        if table.contentInset != contentInsets { table.contentInset = contentInsets }
+        if table.contentInset != contentInsets {
+            table.contentInset = contentInsets
+            // Панель ввода выросла (клавиатура, раскрытое поле, пилюля) — лента,
+            // идущая за низом, держит последнюю строку над ней.
+            if table.followsBottom, !table.isTracking, !table.isDragging, !table.isDecelerating {
+                table.scrollToBottom(animated: false)
+            }
+        }
         if abs(table.rowWidth - table.bounds.width) > 0.5 {
             // Поворот, панель, другая ширина окна: строки собираются заново
             // под новую ширину — но только здесь, не во время раскладки.

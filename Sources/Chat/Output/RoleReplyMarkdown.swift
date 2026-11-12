@@ -305,6 +305,7 @@ struct RoleReplyMarkdown: View, Equatable {
         // (владелец 10.11.2026: «сделай, чтобы на одной линии»).
         Text(Image(uiImage: ChatInlineIcon.image(icon, pointSize: group.size,
                                                  color: UIColor(color))))
+            .baselineOffset(ChatInlineIcon.layout(pointSize: group.size).baselineOffset)
     }
 
     /// Группа шкалы, в которой нарисовано слово: у кода — моно, у заголовка —

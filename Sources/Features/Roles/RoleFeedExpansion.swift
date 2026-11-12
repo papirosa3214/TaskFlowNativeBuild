@@ -19,6 +19,13 @@ enum RoleFeedExpansionKey {
     static func thinking(row: String, item: String) -> String {
         "thinking|row:\(row)|item:\(item)"
     }
+
+    /// Раскрытый вопрос в карточке обращения роли к роли. Без `|row:`:
+    /// id строки ленты у сообщения свой (`feedItemID`), и очистка `retain`
+    /// не должна сворачивать карточку.
+    static func coordination(message: String) -> String {
+        "coordination|message:\(message)"
+    }
 }
 
 /// Что раскрыто в ленте чата.
