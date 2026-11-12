@@ -181,6 +181,10 @@ struct RoleChatRoomScreen: View {
     /// и раскрытое сворачивалось само при прокрутке (владелец 11.11.2026).
     @StateObject private var feedExpansion = RoleFeedExpansion()
     @State private var chatIsNearBottom = true
+    /// Ключ держателя скрытия нижней панели: у каждой комнаты свой, иначе
+    /// закрытие ветки от сообщения сняло бы скрытие у родительской комнаты
+    /// и панель вкладок вернулась бы поверх панели ввода (владелец 12.11.2026).
+    @State private var tabBarHoldKey = "chat.room.\(UUID().uuidString)"
     /// Лента идёт в движении от руки владельца. По этому признаку дорисовываются
     /// старые сообщения: при открытии короткого чата верх виден сразу, и
     /// автодорисовка увозила ленту от низа (07.11.2026).
@@ -297,6 +301,10 @@ struct RoleChatRoomScreen: View {
         // «боковушку пока удалить»). Кого позвали — видно в ленте и в
         // «Собеседниках» параметров чата.
         .quickLookPreview($previewAttachmentURL)
+        // Пока комната открыта, нижней панели вкладок нет: она налезала на
+        // панель ввода текста (владелец 12.11.2026).
+        .onAppear { ChatSectionState.shared.hold(tabBarHoldKey) }
+        .onDisappear { ChatSectionState.shared.release(tabBarHoldKey) }
         .task(id: chat.id + ":" + (chat.taskID ?? "") + ":" + String(workPlanRevision) + ":" + String(refreshRevision)) {
             await loadDiscussionStatus()
         }

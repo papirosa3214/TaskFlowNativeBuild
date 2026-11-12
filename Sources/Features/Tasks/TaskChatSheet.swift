@@ -5,6 +5,8 @@ import SwiftUI
 struct TaskChatSheet: View {
     let chatID: String
     @Environment(\.dismiss) private var dismiss
+    /// Ключ держателя скрытия нижней панели: свой у каждого чата карточки.
+    private var tabBarHoldKey: String { "task.chat.\(chatID)" }
 
     var body: some View {
         NavigationStack { RoleChatRoomLoader(chatID: chatID) }
@@ -34,6 +36,10 @@ struct TaskChatSheet: View {
             // Его отключаем целиком; закрытие разрешено только ручкой выше.
             .interactiveDismissDisabled()
             .presentationDetents([.large])
+            // Чат из карточки задачи — тот же экран переписки: нижней панели
+            // вкладок под ним быть не должно (владелец 12.11.2026).
+            .onAppear { ChatSectionState.shared.hold(tabBarHoldKey) }
+            .onDisappear { ChatSectionState.shared.release(tabBarHoldKey) }
             .presentationContentInteraction(.scrolls)
             .presentationDragIndicator(.hidden)
     }

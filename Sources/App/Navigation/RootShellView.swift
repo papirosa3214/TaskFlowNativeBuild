@@ -114,9 +114,13 @@ struct RootShellView: View {
                          isCreateMenuOpen: isCreateMenuOpen,
                          // Панель — только на главных экранах: внутри раздела «Чат»
                          // (роль, групповые чаты) её нет (владелец 08.11.2026).
+                         // Панель прячется, пока открыт любой экран переписки —
+                         // независимо от вкладки: комнату роли можно открыть и
+                         // из карточки задачи (владелец 12.11.2026: панель
+                         // налезала на панель ввода в чате).
                          isTabBarVisible: quickAddDraft == nil
                              && (paths[selectedTab]?.isEmpty ?? true)
-                             && !(selectedTab == .chat && ChatSectionState.shared.isNested),
+                             && !ChatSectionState.shared.isNested,
                          showsCreateButton: isQuickCreateEnabled,
                          onSelect: handleTabSelection,
                          onCreateTap: { openQuickAddTask() }) { index in
@@ -517,7 +521,11 @@ struct RootShellView: View {
             }
             .navigationDestination(for: AppRoute.self) { routeDestination($0, reservesTabBarSpace: false) }
         }
-        .toolbar(isPillTabBarEnabled && (quickAddDraft != nil || !(paths[tab]?.isEmpty ?? true)) ? .hidden : .automatic, for: .tabBar)
+        // Системный таббар прячется на подэкранах раздела так же, как пилюля:
+        // раньше условие начиналось с `isPillTabBarEnabled`, и при выключенной
+        // пилюле он оставался на экране чата поверх панели ввода
+        // (владелец 12.11.2026).
+        .toolbar(quickAddDraft != nil || !(paths[tab]?.isEmpty ?? true) ? .hidden : .automatic, for: .tabBar)
     }
 
     private func pathBinding(for tab: Tab) -> Binding<NavigationPath> {
