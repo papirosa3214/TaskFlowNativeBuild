@@ -813,7 +813,7 @@ struct ProjectScrollBounceDisabler: UIViewRepresentable {
 /// системный `ColorPicker`, закрепление, база знаний и сохранение. Своим `APIClient()`
 /// зовёт `patchProject` — `ProjectStore` метода `update` не даёт (Core чужой),
 /// после успеха родитель перезагружает стор, чтобы кэш не разъехался с сервером.
-private struct ProjectEditForm: View {
+struct ProjectEditForm: View {
     let project: ApiProject
     let apiClient: APIClient
     let onSaved: () -> Void

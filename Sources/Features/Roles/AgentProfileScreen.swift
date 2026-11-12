@@ -24,6 +24,15 @@ struct AgentProfileScreen: View {
     @State private var isToolsExpanded = false
     /// Интеграции Composio роли — отдельным запросом профиля одной роли.
     @State private var integrations: RoleIntegrations?
+    /// Открыт редактор своего портрета роли (владелец 12.11.2026: «в профиле
+    /// вставлять картинки, двигать квадратик» — раньше это жило в «Команде →
+    /// Внешний вид → Настроить портреты»).
+    @State private var isPortraitEditing = false
+    /// Портрет кадрируется в UserDefaults и сам экран не обновляет — после
+    /// редактора кружок в шапке перерисовывается по этому счётчику.
+    @State private var portraitEpoch = 0
+    /// Общий комплект портретов команды: редактор берёт картинку из него.
+    @AppStorage(TeamAvatarAppearance.storageKey) private var appearance = "current"
 
     private var profile: RoleProfile? { viewModel.profile(for: roleID) }
 
@@ -50,6 +59,16 @@ struct AgentProfileScreen: View {
             integrations = try? await APIClient().roleIntegrations(id: roleID)
         }
         .taskCardSheet(taskID: $sheetTaskID)
+        .tfSheet(isPresented: $isPortraitEditing, onDismiss: { portraitEpoch += 1 }) {
+            if let profile {
+                AvatarCropEditor(role: profile.role,
+                                 roleTitle: profile.title,
+                                 imageAsset: RoleAvatarAsset.imageName(
+                                     for: profile.role,
+                                     appearance: TeamAvatarAppearance(rawValue: appearance) ?? .current),
+                                 accountID: profile.accountID)
+            }
+        }
     }
 
 
@@ -63,6 +82,7 @@ struct AgentProfileScreen: View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             HStack(spacing: TFSpacing.md) {
                 RoleAvatarView(initials: initials(profile.title), tint: roleAccentColor(profile.role), size: 48, role: profile.role)
+                    .id("\(profile.role)-\(portraitEpoch)")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.title)
                         .tfText(.title)
@@ -102,6 +122,17 @@ struct AgentProfileScreen: View {
                 if isInstructionsExpanded && !(profile.prompt ?? "").isEmpty {
                     instructionsBlock(profile.prompt ?? "")
                 }
+            }
+
+            section(title: "Портрет") {
+                infoRow(
+                    icon: "crop",
+                    title: "Своё фото и кружок",
+                    subtitle: "Двигать и увеличивать картинку в кружке, выбрать своё фото, круг или квадрат.",
+                    action: { isPortraitEditing = true }
+                )
+                .hintAnchor(HintAnchorID.externalAgentAvatar)
+                .accessibilityIdentifier("profile-portrait-edit")
             }
 
             if profile.role == "secretary" {

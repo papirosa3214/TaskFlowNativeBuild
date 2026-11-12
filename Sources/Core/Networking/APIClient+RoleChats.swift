@@ -347,6 +347,14 @@ public extension APIClient {
         return response.chat
     }
 
+    /// Положить сессию в проект-папку или достать (`nil`). Только создатель;
+    /// комнаты задач и служебные сервер не перекладывает (владелец 12.11.2026).
+    func setRoleChatProject(id: String, projectID: String?) async throws -> RoleChat {
+        let body: [String: JSONValue] = ["project_id": projectID.map { .string($0) } ?? .null]
+        let response: RoleChatEnvelope = try await request(.patch, "/chats/\(id)", body: body)
+        return response.chat
+    }
+
     /// Привязать чат к задаче или отвязать (`nil`). Только создатель чата.
     /// Привязанный чат показывается в ленте задачи, а его сообщения начинают
     /// наследовать её — сервер переносит и уже написанные.

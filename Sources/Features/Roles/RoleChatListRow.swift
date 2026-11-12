@@ -19,6 +19,8 @@ struct ChatListRow: View {
     var turn: RoomTurn? = nil
     /// Занятый контекст сессии, например «Контекст 42%».
     var contextLabel: String? = nil
+    /// Стадия сессии: «Ожидает» или «В работе».
+    var status: String? = nil
     var projectName: String? = nil
     /// Участник слева. Нет участника — строка без кружка.
     var member: RoleChatMember? = nil
@@ -28,7 +30,7 @@ struct ChatListRow: View {
 
     /// Строка под превью: контекст и проект. Ход — в названии («· в работе»).
     private var metaLine: String? {
-        let parts = [contextLabel, projectName]
+        let parts = [contextLabel, status, projectName]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

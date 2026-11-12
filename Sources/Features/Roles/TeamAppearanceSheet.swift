@@ -5,13 +5,14 @@ import SwiftUI
 /// Галочка «Анимировать» одна на всё приложение: включил — портреты ролей
 /// играют роликом, снял — вернулись статичные. По умолчанию выключено (восемь
 /// одновременно играющих роликов заметно садят батарею).
+/// Общие настройки портретов команды: комплект, анимация, вариант Помощника.
+/// Свой портрет роли (фото, кадр, круг или квадрат) — в её профиле
+/// (владелец 12.11.2026).
 struct TeamAppearanceSheet: View {
     @AppStorage(TeamAvatarAppearance.storageKey) private var selected = "current"
     @AppStorage(TeamAvatarAnimation.storageKey) private var animated = false
     @AppStorage(TeamAvatarSecretaryVariant.storageKey) private var secretaryVariant = TeamAvatarSecretaryVariant.classic.rawValue
     @Environment(\.dismiss) private var dismiss
-    @State private var showRoles = false
-    @State private var editingRole: String?
     /// Роли команды с сервера: ключ → название. Раньше список был зашит
     /// константой из десяти внутренних ролей, и внешних агентов (Claude Code,
     /// Codex, Gemini, Гермес, OpenCode) в «Внешнем виде» не было вовсе
@@ -19,13 +20,6 @@ struct TeamAppearanceSheet: View {
     @State private var profiles: [RoleProfile] = []
 
     private var showsSecretaryVariants: Bool { selected == TeamAvatarAppearance.noir.rawValue }
-
-    /// Название роли для строки и заголовка редактора: из профиля команды,
-    /// а не из ручного словаря — иначе у внешнего агента в заголовке был бы
-    /// голый ключ `claude_code`.
-    private func title(of role: String) -> String {
-        profiles.first { $0.role == role }?.title ?? AvatarCrop.roleTitle(role)
-    }
 
     /// Все роли команды: и внутренние, и внешние агенты. Порядок — как в
     /// «Команде» (сервер отдаёт его по position).
@@ -40,17 +34,6 @@ struct TeamAppearanceSheet: View {
     /// в сетке нет — там роль остаётся инициалами, как у владельца.
     private func rolesWithPortrait(in appearance: TeamAvatarAppearance) -> [String] {
         allRoleKeys.filter { RoleAvatarAsset.imageName(for: $0, appearance: appearance) != nil }
-    }
-
-    /// Роли, которым владелец может поставить своё фото. Когда команда
-    /// загрузилась — все, включая внешних без вшитого портрета: фото ляжет
-    /// на телефон сразу, а на сервер уйдёт, если у роли есть учётка.
-    private var rolesWithPhotoEntry: [String] {
-        if !profiles.isEmpty { return allRoleKeys }
-        return allRoleKeys.filter { role in
-            RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current) != nil
-                || RoleAvatarAsset.hasBundledPortrait(role)
-        }
     }
 
     var body: some View {
@@ -151,24 +134,6 @@ struct TeamAppearanceSheet: View {
                     }
                 }
 
-                Section {
-                    Button {
-                        showRoles = true
-                    } label: {
-                        HStack(spacing: TFSpacing.md) {
-                            Image(systemName: "crop")
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Настроить портреты")
-                                Text("Двигать и увеличивать картинку в кружке, выбрать своё фото, круг или квадрат.")
-                                    .tfText(.meta)
-                                    .foregroundStyle(Color.tfSub)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .accessibilityIdentifier("team-avatar-crop-open")
-                    .tint(.tfRed)
-                }
             }
             // Смена комплекта перестраивает список целиком: `List` держит
             // набор секций от первого построения, и секция выбора портрета
@@ -183,48 +148,6 @@ struct TeamAppearanceSheet: View {
                 // ставит своё фото любой роли, включая внешних агентов.
                 profiles = (try? await APIClient().roles(all: true)) ?? []
             }
-            .navigationDestination(isPresented: $showRoles) {
-                List {
-                    ForEach(rolesWithPhotoEntry, id: \.self) { role in
-                        let appearance = TeamAvatarAppearance(rawValue: selected) ?? .current
-                        let asset = RoleAvatarAsset.imageName(for: role, appearance: appearance)
-                        Button {
-                            editingRole = role
-                        } label: {
-                            TFListRow(
-                                leading: AnyView(RoleAvatarView(
-                                    initials: String(title(of: role).prefix(1)),
-                                    tint: roleAccentColor(role),
-                                    size: 44,
-                                    role: role
-                                )),
-                                title: title(of: role),
-                                horizontalPadding: 0,
-                                chevron: .shown
-                            )
-                            .accessibilityValue(asset == nil ? "своё фото" : "вшитый портрет")
-                        }
-                        .accessibilityIdentifier("team-avatar-crop-role-" + role)
-                    }
-                }
-                .navigationTitle("Портреты ролей")
-                .navigationBarTitleDisplayMode(.inline)
-                .tint(.tfRed)
-            }
-            .tfSheet(item: Binding(
-                get: { editingRole.map { RoleBox(id: $0) } },
-                set: { editingRole = $0?.id }
-            )) { box in
-                let role = box.id
-                AvatarCropEditor(role: role,
-                                 roleTitle: title(of: role),
-                                 imageAsset: RoleAvatarAsset.imageName(for: role, appearance: TeamAvatarAppearance(rawValue: selected) ?? .current),
-                                 accountID: profiles.first { $0.role == role }?.accountID)
-            }
         }
     }
-}
-/// Обёртка для `.sheet(item:)`: `String` не `Identifiable`, а роль — это строка.
-private struct RoleBox: Identifiable {
-    let id: String
 }

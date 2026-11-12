@@ -48,13 +48,9 @@ struct RoleChatsScreen: View {
     @State private var errorMessage: String?
     @Environment(\.openRoute) private var openRoute
     @Environment(\.dismiss) private var dismiss
-    @State private var showingCreate = false
     /// Чат, выбранный для окончательного удаления: ждёт подтверждения,
     /// потому что вернуть его уже будет нельзя.
     @State private var pendingPurge: RoleChat?
-    /// Свёрнутые папки проектов в каталоге «Групповые чаты»: свернул — комнаты
-    /// задач этого проекта убраны, развернул — снова видны.
-    @State private var openProjects: Set<String> = []
     /// Штатный поиск в шапке списка.
     @State private var query = ""
     @State private var hits: [ChatSearchHit] = []
@@ -63,15 +59,26 @@ struct RoleChatsScreen: View {
     /// положение прокрутки, которым ряд прячут под шапку и раскрывают.
     @State private var storiesMotion = ChatStoriesMotion()
     @State private var storiesScroll = ScrollPosition(edge: .top)
+    /// Нижний отступ короткого списка: дотягивает ленту до «видимая часть плюс
+    /// ряд». Иначе при двух сессиях ленте не на что прокрутиться, ряд не
+    /// прячется под шапку и висит раскрытым (владелец 12.11.2026: «в обычном
+    /// состоянии аватарки должны быть в углу»). Ни `frame(minHeight:)`, ни
+    /// пустая вставка в конце размер прокрутки не меняли — проверено журналом;
+    /// `contentMargins` прокрутка учитывает.
+    @State private var storiesFiller: CGFloat = 0
+    /// Папки сессий — проекты TaskFlow (владелец 12.11.2026).
+    @State private var projects: [ApiProject] = []
+    /// Выбранная папка; пустая строка — «Все».
+    @AppStorage("chats.folder") private var folderID = ""
+    /// Правка порядка проектов в полоске; снимается тапом по пустому месту.
+    @State private var folderEditing = false
+    /// Меню проекта в полоске папок (владелец 12.11.2026).
+    @State private var editingProject: ApiProject?
+    @State private var sessionsProject: ApiProject?
+    @State private var deletingProject: ApiProject?
     /// Чат, у которого меняют название.
     @State private var renameTarget: RoleChat?
     @State private var renameText = ""
-    /// Внешний агент, которому с телефона ставят своё фото. Кружок в списке,
-    /// не путь через «Команду».
-    @State private var avatarRoleID: String?
-    /// Смена фото должна перерисовать кружок: кадрирование лежит в
-    /// UserDefaults и само экран не обновляет.
-    @State private var avatarEpoch = 0
     /// Закреплённые чаты — через запятую (владелец 08.11.2026).
     @AppStorage("chats.pinned") private var pinnedRaw = ""
     @Environment(RealtimeClient.self) private var realtime
@@ -82,14 +89,22 @@ struct RoleChatsScreen: View {
     /// Список — сессии выбранного на панели пункта, ветки деревом под своей
     /// сессией. Лички ролей показаны отдельно, под сессиями роли.
     private var visibleRows: [(row: RoleSessionRow, chat: RoleChat)] {
+        sessionRows(for: selectedScope)
+    }
+
+    private func sessionRows(for scope: RoleSessionScope) -> [(row: RoleSessionRow, chat: RoleChat)] {
         guard isOwner else {
             return chats.filter { !$0.isPermanentRoom }.map { (RoleSessionRow(id: $0.id, lines: []), $0) }
         }
         let byID = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return RoleSessionList.rows(candidates, scope: selectedScope).compactMap { row in
+        return RoleSessionList.rows(candidates, scope: scope).compactMap { row in
             byID[row.id].map { (row, $0) }
         }
     }
+
+    /// Помощник — это сам чат, а не одна из ролей: корень вкладки — его
+    /// сессии (владелец 12.11.2026).
+    private static let assistantID = "u-secretary"
 
     /// Что список знает о каждом чате для раскладки по спискам.
     private var candidates: [RoleSessionCandidate] {
@@ -102,12 +117,6 @@ struct RoleChatsScreen: View {
         }
     }
 
-    /// Каталог «Групповые чаты» папками проектов (спецификация 08.11.2026, §3):
-    /// проект — папка комнат его задач, а не чат; комнаты без проекта лежат вне
-    /// папок.
-    private var groupSections: [RoleSessionGroup] {
-        RoleSessionList.groups(candidates, scope: .groups)
-    }
     /// Переписка выбранной роли с коллегами: открывается только на чтение.
     private var selectedRoleDMs: [ChatRoomsSnapshot.DirectRoom] {
         guard isOwner, case .role(let id) = selectedScope else { return [] }
@@ -117,7 +126,7 @@ struct RoleChatsScreen: View {
         guard isOwner else { return "Чаты" }
         if selectedScopeRaw == Self.ChatHomeScopeKey { return "Чат" }
         switch selectedScope {
-        case .groups: return "Групповые чаты"
+        case .groups: return "Чаты"
         case .role(let id): return rooms?.role(id)?.name ?? "Чаты"
         }
     }
@@ -146,6 +155,15 @@ struct RoleChatsScreen: View {
                             .accessibilityIdentifier("chats.newSession")
                     }
                 }
+                if isOwner, isHome {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { Task { await startChat(withRole: Self.assistantID, projectID: folderID.isEmpty ? nil : folderID) } } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .accessibilityLabel("Новый чат")
+                        .accessibilityIdentifier("chats.newAssistantChat")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
@@ -169,21 +187,32 @@ struct RoleChatsScreen: View {
                         .accessibilityIdentifier("chats.menu")
                 }
             }
-            .tfSheet(isPresented: $showingCreate) {
-                CreateRoleChatScreen {
-                    Task { await load() }
-                }
-            }
-            .tfSheet(item: avatarEdit, onDismiss: { avatarEpoch += 1 }) { box in
-                if let role = rooms?.role(box.id) {
-                    let key = role.roleKey ?? RoleAvatarAsset.role(forUserID: role.id) ?? role.id
-                    AvatarCropEditor(role: key,
-                                     roleTitle: role.name,
-                                     imageAsset: RoleAvatarAsset.imageName(for: key),
-                                     accountID: role.id)
-                }
-            }
             .task(id: query) { await runSearch() }
+            .tfSheet(item: $editingProject) { project in
+                ScrollView {
+                    ProjectEditForm(project: project, apiClient: api, onSaved: {
+                        editingProject = nil
+                        Task { await reloadProjects() }
+                    }, onCancel: { editingProject = nil })
+                    .padding(TFSpacing.screenHorizontal)
+                }
+                .tfScreenBackground()
+            }
+            .tfSheet(item: $sessionsProject) { project in
+                ChatsProjectSessionsSheet(project: project, sessions: assistantSessions) { add, remove in
+                    Task { await moveChats(add: add, remove: remove, project: project.id) }
+                }
+            }
+            .confirmationDialog("Удалить проект?", isPresented: Binding(
+                get: { deletingProject != nil }, set: { if !$0 { deletingProject = nil } }
+            ), titleVisibility: .visible) {
+                Button("Удалить", role: .destructive) {
+                    if let project = deletingProject { Task { await archiveProject(project) } }
+                }
+                Button("Отмена", role: .cancel) { deletingProject = nil }
+            } message: {
+                Text("Проект уйдёт в архив вместе с задачами, его сессии закроются. Вернуть можно из архива проектов.")
+            }
             .alert("Название чата", isPresented: renamePresented) {
                 TextField("Название", text: $renameText)
                 Button("Сохранить") { Task { await applyRename() } }
@@ -192,7 +221,7 @@ struct RoleChatsScreen: View {
             .task { await load() }
             .refreshable { await load() }
             // Внутри раздела нижней панели нет — только на главных экранах
-            // (владелец 08.11.2026). Групповые чаты ещё живут состоянием.
+            // (владелец 08.11.2026).
             .onChange(of: selectedScopeRaw, initial: true) { _, raw in
                 ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
             }
@@ -257,13 +286,23 @@ struct RoleChatsScreen: View {
     /// то, что видно, — остальное достраивается по прокрутке.
     private var chatScroll: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                if openedScope == nil {
-                    if storiesActive {
-                        ChatStoriesRow(stories: stories, motion: storiesMotion)
-                    }
-                    ChatsSearchField(text: $query)
+            // Ряд и поиск — в обычном стеке над ленивым списком: внутри
+            // ленивого их высота пересчитывалась, когда ряд уходил за экран, и
+            // лента откатывалась на 76 точек (журнал 12.11.2026).
+            VStack(spacing: 0) {
+            if openedScope == nil {
+                if storiesActive {
+                    ChatStoriesRow(stories: stories, motion: storiesMotion)
                 }
+                ChatsSearchField(text: $query, motion: storiesMotion,
+                                 rowHeight: storiesActive ? ChatStoriesLayout.rowHeight : 0)
+            }
+            // Полоска проектов — липкий заголовок списка: едет со списком,
+            // а дойдя до шапки, прилипает под ней; поиск над ней схлопывается
+            // (владелец 12.11.2026: «липкий подзаголовок»).
+            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+              Section {
+               Group {
                 if isSearchMode {
                     searchResults
                 } else if isHome {
@@ -277,21 +316,8 @@ struct RoleChatsScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                         .padding(.top, TFSpacing.xl)
-                } else if selectedScope == .groups {
-                    groupsCatalog
                 } else {
-                    let rows = visibleRows
-                    ForEach(Array(rows.enumerated()), id: \.element.row.id) { index, item in
-                        HStack(spacing: 0) {
-                            if !item.row.lines.isEmpty { SessionBranchLines(lines: item.row.lines) }
-                            sessionLink(item.chat, isBranch: !item.row.lines.isEmpty)
-                        }
-                        .fixedSize(horizontal: false, vertical: true)
-                        // Под сессией с ветками линии не прерываем разделителем.
-                        if index < rows.count - 1, rows[index + 1].row.lines.isEmpty {
-                            rowDivider(afterAvatar: rowMember(item.chat) != nil)
-                        }
-                    }
+                    sessionList(visibleRows)
                     if !selectedRoleDMs.isEmpty {
                         Text("Переписка с коллегами")
                             .tfText(.meta)
@@ -314,8 +340,44 @@ struct RoleChatsScreen: View {
                         }
                     }
                 }
+                // Добор высоты короткого списка — последней строкой самого
+                // списка: ни рамка, ни вставка снаружи, ни `contentMargins`
+                // длину прокрутки не меняли (последний сужал видимую область,
+                // проверено журналом).
+                if storiesActive, storiesFiller > 0 {
+                    Color.clear.frame(height: storiesFiller)
+                }
+               }
+               .overlay {
+                   // Тап по списку во время правки полоски — «готово».
+                   if folderEditing {
+                       Color.clear.contentShape(Rectangle())
+                           .onTapGesture { withAnimation(TFMotion.standard) { folderEditing = false } }
+                   }
+               }
+              } header: {
+                if openedScope == nil, isOwner, isHome, !projects.isEmpty, !isSearchMode {
+                    ChatsFolderBar(projects: projects, selected: $folderID, actions: folderActions,
+                                   editing: $folderEditing)
+                }
+              }
             }
             .padding(.bottom, TFSpacing.xl)
+            .contentShape(Rectangle())
+            // Свайп по списку влево/вправо — соседний проект, как папки в
+            // Telegram (владелец 12.11.2026). Только явно горизонтальный жест:
+            // вертикальная прокрутка его не задевает.
+            .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { value in
+                guard isOwner, isHome, !projects.isEmpty, !isSearchMode else { return }
+                let dx = value.translation.width, dy = value.translation.height
+                guard abs(dx) > 60, abs(dx) > abs(dy) * 2 else { return }
+                let order = [""] + projects.map(\.id)
+                let index = order.firstIndex(of: folderID) ?? 0
+                let next = dx < 0 ? index + 1 : index - 1
+                guard order.indices.contains(next) else { return }
+                withAnimation(TFMotion.standard) { folderID = order[next] }
+            })
+            }
         }
         .scrollIndicators(.hidden)
         .scrollPosition($storiesScroll)
@@ -323,11 +385,14 @@ struct RoleChatsScreen: View {
         .onScrollGeometryChange(for: ChatStoriesGeometry.self) { geo in
             ChatStoriesGeometry(offset: geo.contentOffset.y + geo.contentInsets.top,
                                 topInset: geo.contentInsets.top,
+                                container: geo.containerSize.height,
+                                content: geo.contentSize.height,
                                 spare: geo.contentSize.height + geo.contentInsets.top
                                     + geo.contentInsets.bottom - geo.containerSize.height)
         } action: { _, geo in
             trackStories(geo)
         }
+
         .overlay {
             if storiesActive {
                 ChatStoriesFlight(stories: stories, motion: storiesMotion, title: headerTitle) {
@@ -343,16 +408,14 @@ struct RoleChatsScreen: View {
         openedScope == nil && isOwner && isHome && !stories.isEmpty
     }
 
-    /// Роли ряда — те же, что строками в списке и в том же порядке:
-    /// Помощник, роли, внешние агенты.
+    /// Роли ряда: сначала свои роли, потом внешние агенты. Помощника в ряду
+    /// нет — он и есть этот чат, а не одна из ролей (владелец 12.11.2026).
     private var stories: [ChatStory] {
-        let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
-        let secretary = roles.filter { $0.id == "u-secretary" }
-        let others = roles.filter { $0.id != "u-secretary" }
-        let internalRoles = others.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        return (secretary + internalRoles + externalRoles).map {
-            ChatStory(id: $0.id, name: $0.name, member: $0.member,
+        let roles = rooms?.roles.filter { $0.personalChatID != nil && $0.id != Self.assistantID } ?? []
+        let internalRoles = roles.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        let externalRoles = roles.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
+        return (internalRoles + externalRoles).map {
+            ChatStory(id: $0.id, name: $0.name, roleKey: $0.roleKey, member: $0.member,
                       working: $0.working || $0.personalTurn?.running == true)
         }
     }
@@ -363,9 +426,56 @@ struct RoleChatsScreen: View {
     private func trackStories(_ geo: ChatStoriesGeometry) {
         storiesMotion.offset = geo.offset
         storiesMotion.topInset = geo.topInset
-        guard storiesActive, !storiesMotion.placed, geo.spare >= ChatStoriesLayout.rowHeight else { return }
-        storiesMotion.placed = true
-        storiesScroll.scrollTo(y: ChatStoriesLayout.rowHeight)
+        if storiesActive {
+            // Считается от высоты экрана, а не от нижней вставки: отступ сам
+            // входит во вставку, и расчёт от неё замыкался (324 → 0 → 324).
+            // Нижняя панель вкладок в расчёт не входит — лишние точки внизу
+            // безвредны. +2: запас на дробные точки.
+            // Высота прокрутки сама уменьшается на нижний отступ (707 → 256 в
+            // журнале), поэтому берём наибольшую виденную — она от отступа не
+            // зависит, и расчёт не качается.
+            storiesMotion.fullHeight = max(storiesMotion.fullHeight, geo.container)
+            let base = geo.content - storiesFiller
+            // Наибольшее смещение = высота содержимого минус высота прокрутки,
+            // шапка в него не входит (журнал: при 737 содержимого лента
+            // упиралась в 30 вместо 106).
+            let need = max(0, storiesMotion.fullHeight + ChatStoriesLayout.rowHeight + ChatStoriesLayout.searchHeight + 2 - base)
+            if abs(need - storiesFiller) > 1 {
+                storiesFiller = need
+                // Ленивый список сообщает новую высоту только при следующей
+                // прокрутке, поэтому к ряду едем сами, не дожидаясь события.
+                if !storiesMotion.placed {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        storiesScroll.scrollTo(y: ChatStoriesLayout.rowHeight)
+                    }
+                }
+            }
+        }
+        guard storiesActive, !storiesMotion.placed, geo.spare >= ChatStoriesLayout.rowHeight - 1 else { return }
+        // Отметка — только когда лента действительно встала на высоту ряда:
+        // прокрутка, данная в тот же кадр, что и нижний отступ, обрезалась до
+        // нуля, а повтора не было. Сама прокрутка — на следующем кадре.
+        if geo.offset >= ChatStoriesLayout.rowHeight - 1 {
+            storiesMotion.placed = true
+            return
+        }
+        DispatchQueue.main.async { storiesScroll.scrollTo(y: ChatStoriesLayout.rowHeight) }
+    }
+
+    /// Сессии деревом: ветки линиями под своей сессией.
+    @ViewBuilder
+    private func sessionList(_ rows: [(row: RoleSessionRow, chat: RoleChat)]) -> some View {
+        ForEach(Array(rows.enumerated()), id: \.element.row.id) { index, item in
+            HStack(spacing: 0) {
+                if !item.row.lines.isEmpty { SessionBranchLines(lines: item.row.lines) }
+                sessionLink(item.chat, isBranch: !item.row.lines.isEmpty)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            // Под сессией с ветками линии не прерываем разделителем.
+            if index < rows.count - 1, rows[index + 1].row.lines.isEmpty {
+                rowDivider(afterAvatar: rowMember(item.chat) != nil)
+            }
+        }
     }
 
     /// Поле поиска: пока введено что-то, вместо секций — выдача по всем чатам.
@@ -409,41 +519,36 @@ struct RoleChatsScreen: View {
     /// (владелец 08.11.2026: «раздел чата сразу на какой-то роли — странно»).
     private var isHome: Bool { selectedScopeRaw == Self.ChatHomeScopeKey }
 
+    /// Корень вкладки — сессии Помощника плоским списком (владелец 12.11.2026:
+    /// «помощник — он и есть этот чат, и у него сразу идут сессии»). Роли —
+    /// кружками в ряду над поиском; разделы «Роли», «Внешние агенты» и каталог
+    /// «Групповые чаты» из вкладки убраны («всю эту хламину удаляем»). Данные
+    /// на сервере не трогаются.
     @ViewBuilder
     private var chatsHome: some View {
-        let pinned = chats.filter { pinnedIDs.contains($0.id) }
+        let all = isOwner ? sessionRows(for: .role(Self.assistantID)) : visibleRows
+        let rows = folderID.isEmpty ? all : all.filter { $0.chat.projectID == folderID }
+        let pinned = rows.filter { pinnedIDs.contains($0.chat.id) && $0.row.lines.isEmpty }
         if !pinned.isEmpty {
             homeHeader("Закреплённые")
-            ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
-                sessionLink(chat, isBranch: false)
-                if index < pinned.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
+            ForEach(Array(pinned.enumerated()), id: \.element.chat.id) { index, item in
+                sessionLink(item.chat, isBranch: false)
+                if index < pinned.count - 1 { rowDivider(afterAvatar: rowMember(item.chat) != nil) }
             }
+            homeHeader("Сессии")
         }
-        let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
-        let secretary = roles.first { $0.id == "u-secretary" }
-        let others = roles.filter { $0.id != "u-secretary" }
-        if let secretary {
-            homeHeader("Помощник владельца")
-            homeRoleRow(secretary)
+        if isLoading && chats.isEmpty {
+            TFLoading(.block)
+        } else if rows.isEmpty {
+            Text("Пока нет сессий.")
+                .tfText(.action)
+                .foregroundStyle(Color.tfDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.xl)
+        } else {
+            sessionList(rows)
         }
-        let internalRoles = others.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        if !internalRoles.isEmpty {
-            homeHeader("Роли")
-            ForEach(Array(internalRoles.enumerated()), id: \.element.id) { index, role in
-                homeRoleRow(role)
-                if index < internalRoles.count - 1 { rowDivider(afterAvatar: true) }
-            }
-        }
-        if !externalRoles.isEmpty {
-            homeHeader("Внешние агенты")
-            ForEach(Array(externalRoles.enumerated()), id: \.element.id) { index, role in
-                homeRoleRow(role, photoOnAvatar: true, hintAvatar: index == 0)
-                if index < externalRoles.count - 1 { rowDivider(afterAvatar: true) }
-            }
-        }
-        homeHeader("Групповые чаты")
-        groupsCatalog
     }
 
     /// Подпись раздела по центру. Это подзаголовок: кегль и гарнитура —
@@ -484,85 +589,6 @@ struct RoleChatsScreen: View {
         }
     }
 
-    /// Кружок внешнего агента, которому открыт редактор фото.
-    private var avatarEdit: Binding<AvatarRoleBox?> {
-        Binding(
-            get: { avatarRoleID.map { AvatarRoleBox(id: $0) } },
-            set: { avatarRoleID = $0?.id }
-        )
-    }
-
-    /// Строка комнаты в корне: имя, последняя реплика и время — как в списке
-    /// чатов, тап открывает сессии этой роли. У внешнего агента кружок —
-    /// отдельная кнопка: тап ставит своё фото, строка справа открывает чат.
-    @ViewBuilder
-    private func homeRoleRow(_ role: ChatRoomsSnapshot.RoleRoom, photoOnAvatar: Bool = false, hintAvatar: Bool = false) -> some View {
-        let mine = chats.filter { $0.others(excluding: session.currentUser?.id).contains { $0.id == role.id } }
-        let unread = mine.reduce(0) { $0 + $1.unread }
-        // Считаем те же комнаты, что откроются внутри роли: не все чаты, где
-        // роль участник (владелец 11.11.2026: «написано 19 комнат,
-        // проваливаюсь — две»).
-        let rooms = RoleSessionList.roomsCount(RoleSessionList.count(candidates, scope: .role(role.id)))
-        let preview = dmPreview(role.lastMessage)
-        let line = preview.isEmpty ? rooms : "\(rooms) · \(preview)"
-        // Переход, а не переключение состояния: нижняя панель прячется сама,
-        // а свайп слева направо работает системный — шаг назад, как везде в
-        // приложении (владелец 08.11.2026).
-        let running = role.working || role.personalTurn?.running == true
-        let turn = running ? RoomTurn(running: true) : role.personalTurn
-        if photoOnAvatar {
-            HStack(alignment: .center, spacing: 0) {
-                avatarPhotoButton(role, hinted: hintAvatar)
-                NavigationLink(value: AppRoute.chatRole(id: role.id)) {
-                    ChatListRow(title: role.name,
-                                preview: line,
-                                time: ChatListTime.label(role.lastMessage?.createdAt),
-                                unread: unread,
-                                turn: turn,
-                                member: nil,
-                                omitsAvatar: true)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("chats.rooms.\(role.id)")
-            }
-        } else {
-            NavigationLink(value: AppRoute.chatRole(id: role.id)) {
-                ChatListRow(title: role.name,
-                            preview: line,
-                            time: ChatListTime.label(role.lastMessage?.createdAt),
-                            unread: unread,
-                            turn: turn,
-                            member: role.member)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chats.rooms.\(role.id)")
-        }
-    }
-
-    /// Кружок внешнего агента. Не внутри ссылки на чат: иначе тап открывает
-    /// переписку и фото с телефона поставить нельзя.
-    private func avatarPhotoButton(_ role: ChatRoomsSnapshot.RoleRoom, hinted: Bool) -> some View {
-        let button = Button {
-            avatarRoleID = role.id
-        } label: {
-            RoleMemberAvatar(member: role.member)
-                .id("\(role.id)-\(avatarEpoch)")
-                .padding(.leading, TFSpacing.screenHorizontal)
-                .padding(.trailing, TFSpacing.xs)
-                .padding(.vertical, TFSpacing.xs)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Поставить фото, \(role.name)")
-        .accessibilityIdentifier("chats.avatar.\(role.id)")
-        return Group {
-            if hinted {
-                button.hintAnchor(HintAnchorID.externalAgentAvatar)
-            } else {
-                button
-            }
-        }
-    }
-
     private func selectHome() {
         // Экран открыт переходом — «назад» один: системный возврат.
         if openedScope != nil {
@@ -573,61 +599,6 @@ struct RoleChatsScreen: View {
     }
 
     // MARK: - Строка сессии
-
-    /// Папки проектов и комнаты внутри них. Папка одной строкой, комнаты —
-    /// теми же строками списка, что и везде.
-    @ViewBuilder
-    private var groupsCatalog: some View {
-        let byID = Dictionary(chats.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let sections = groupSections
-        ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
-            if let title = section.title {
-                folderRow(title: title, isOpen: openProjects.contains(title), count: section.ids.count,
-                          isFirst: index == 0)
-                rowDivider()
-            }
-            let isOpen = section.title.map { openProjects.contains($0) } ?? true
-            if isOpen {
-                let rooms = section.ids.compactMap { byID[$0] }
-                ForEach(Array(rooms.enumerated()), id: \.element.id) { position, chat in
-                    sessionLink(chat, isBranch: false)
-                    if position < rooms.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
-                }
-            }
-            if index < sections.count - 1, sections[index + 1].title != nil, !isOpen { rowDivider() }
-        }
-    }
-
-    /// Строка папки проекта: название проекта и число комнат в нём.
-    @ViewBuilder
-    private func folderRow(title: String, isOpen: Bool, count: Int, isFirst: Bool) -> some View {
-        let row = Button {
-            withAnimation(TFMotion.standard) {
-                if isOpen { openProjects.remove(title) } else { openProjects.insert(title) }
-            }
-        } label: {
-            TFListRow(
-                icon: "folder",
-                iconStyle: .plain,
-                title: title,
-                subtitle: RoleSessionList.roomsCount(count),
-                trailing: isOpen
-                    ? AnyView(Image(systemName: "chevron.down").tfTypeFont(size: 13).foregroundStyle(Color.tfDim))
-                    : nil,
-                verticalPadding: TFSpacing.sm,
-                chevron: isOpen ? .hidden : .shown
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("chats.folder.\(title)")
-        .accessibilityValue(isOpen ? "Развёрнута" : "Свёрнута")
-        // Подсказка вешается на первую папку: одна точка на весь каталог.
-        if isFirst {
-            row.hintAnchor(HintAnchorID.chatsProjectFolders)
-        } else {
-            row
-        }
-    }
 
     /// Разделитель отбит до начала текста: у строки с аватаром — за кружком.
     private func rowDivider(afterAvatar: Bool = false) -> some View {
@@ -651,6 +622,29 @@ struct RoleChatsScreen: View {
                       systemImage: pinnedIDs.contains(chat.id) ? "pin.slash" : "pin")
             }
             .accessibilityIdentifier("chats.row.pin")
+            if isOwner, isHome, !projects.isEmpty {
+                Menu {
+                    Button { Task { await moveChat(chat, to: nil) } } label: {
+                        Label("Без проекта", systemImage: chat.projectID == nil ? "checkmark" : "tray")
+                    }
+                    ForEach(projects) { project in
+                        Button { Task { await moveChat(chat, to: project.id) } } label: {
+                            if chat.projectID == project.id {
+                                Label(project.name, systemImage: "checkmark")
+                            } else {
+                                Text(project.name)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Перенести в проект", systemImage: "folder")
+                }
+                .accessibilityIdentifier("chats.row.move")
+            }
+            Button { Task { await exportSessions(of: nil, only: chat) } } label: {
+                Label("Экспорт в Markdown", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("chats.row.export")
             if isOwner && !chat.isPermanentRoom {
                 Button {
                     renameText = chat.title ?? ""
@@ -687,18 +681,100 @@ struct RoleChatsScreen: View {
     }
     private func startNewSession() {
         switch selectedScope {
-        case .groups: showingCreate = true
+        case .groups: break
         case .role(let id): Task { await startChat(withRole: id) }
         }
     }
 
     /// Новая сессия с ролью — тот же `POST /api/chats`, что у «Чат с
     /// участниками»; без названия: его даст первое сообщение.
-    private func startChat(withRole roleID: String) async {
+    private func startChat(withRole roleID: String, projectID: String? = nil) async {
         do {
-            let chat = try await api.createRoleChat(title: nil, memberIDs: [roleID])
+            var chat = try await api.createRoleChat(title: nil, memberIDs: [roleID])
+            // Выбрана папка — новый чат сразу в ней (владелец 12.11.2026).
+            if let projectID { chat = try await api.setRoleChatProject(id: chat.id, projectID: projectID) }
             try await refreshList()
             openRoute?(.roleChat(id: chat.id))
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Меню проекта в полоске папок.
+    private var folderActions: ChatsFolderBar.Actions {
+        ChatsFolderBar.Actions(
+            edit: { editingProject = $0 },
+            addSessions: { sessionsProject = $0 },
+            reorder: { order in Task { await saveProjectOrder(order) } },
+            export: { project in Task { await exportSessions(of: project) } },
+            delete: { deletingProject = $0 }
+        )
+    }
+
+    /// Сессии Помощника для листа «Добавить сессии».
+    private var assistantSessions: [ChatsProjectSessionsSheet.Session] {
+        sessionRows(for: .role(Self.assistantID))
+            .filter { $0.row.lines.isEmpty }
+            .map { .init(id: $0.chat.id, title: rowTitle($0.chat, isBranch: false), projectID: $0.chat.projectID) }
+    }
+
+    private func reloadProjects() async {
+        if let list = try? await api.projects() { projects = list }
+    }
+
+    private func moveChats(add: [String], remove: [String], project: String) async {
+        do {
+            for id in add { _ = try await api.setRoleChatProject(id: id, projectID: project) }
+            for id in remove { _ = try await api.setRoleChatProject(id: id, projectID: nil) }
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// «Изменить порядок → Готово»: позиции проектов по новому порядку.
+    private func saveProjectOrder(_ order: [ApiProject]) async {
+        projects = order
+        do {
+            for (position, item) in order.enumerated() where item.position != position {
+                _ = try await api.patchProject(id: item.id, fields: ["position": .number(Double(position))])
+            }
+            await reloadProjects()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// «Удалить» — как в «Проектах»: проект в архив вместе с задачами.
+    private func archiveProject(_ project: ApiProject) async {
+        deletingProject = nil
+        do {
+            try await api.deleteProject(id: project.id)
+            if folderID == project.id { folderID = "" }
+            await reloadProjects()
+            try await refreshList()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Экспорт в Markdown: одна сессия или все сессии проекта одним файлом.
+    private func exportSessions(of project: ApiProject?, only chat: RoleChat? = nil) async {
+        let chosen: [RoleChat] = if let chat { [chat] } else {
+            sessionRows(for: .role(Self.assistantID)).map(\.chat).filter { $0.projectID == project?.id }
+        }
+        guard !chosen.isEmpty else {
+            errorMessage = "В проекте пока нет сессий"
+            return
+        }
+        do {
+            var transcripts: [RoleChatTranscript] = []
+            for item in chosen {
+                let messages = try await api.roleChatMessages(id: item.id, projection: .full)
+                transcripts.append(RoleChatTranscript(title: rowTitle(item, isBranch: false), messages: messages))
+            }
+            let title = chat.map { rowTitle($0, isBranch: false) } ?? (project?.name ?? "Сессии")
+            try RoleChatMarkdownExport.share(title: title, transcripts: transcripts)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Переложить сессию в проект-папку или достать из папки.
+    private func moveChat(_ chat: RoleChat, to projectID: String?) async {
+        do {
+            _ = try await api.setRoleChatProject(id: chat.id, projectID: projectID)
+            try await refreshList()
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -732,11 +808,11 @@ struct RoleChatsScreen: View {
             unread: chat.unread + chats.filter { $0.parentChatID == chat.id }.reduce(0) { $0 + $1.unread },
             taskTitle: chat.taskTitle,
             turn: chat.turn,
-            contextLabel: selectedScope == .groups ? nil : chat.contextUsage?.label,
-            // В каталоге проект уже назван папкой, в строке он был бы повтором.
-            projectName: selectedScope == .groups
-                ? nil
-                : (chat.projectName == chat.title ? nil : chat.projectName),
+            // Одна форма у всех сессий (владелец 12.11.2026): контекст есть
+            // всегда — без замера «0%», — и рядом стадия: ждёт или работает.
+            contextLabel: chat.contextUsage?.label ?? "Контекст 0%",
+            status: chat.turn?.running == true ? "В работе" : "Ожидает",
+            projectName: chat.projectName == chat.title ? nil : chat.projectName,
             member: rowMember(chat)
         )
     }
@@ -745,9 +821,11 @@ struct RoleChatsScreen: View {
     /// один кружок за всех не ставится.
     /// Внутри экрана конкретной роли кружка нет вовсе: роль названа заголовком,
     /// а одинаковый кружок у каждой сессии только шумит (владелец 11.11.2026).
-    /// Общий список чатов (`isHome`) и каталог групп аватар сохраняют.
+    /// В корне вкладки теперь сессии Помощника — у всех один и тот же кружок,
+    /// поэтому его тоже нет (владелец 12.11.2026: «тупо, когда все сессии с
+    /// одной аватаркой»).
     private func rowMember(_ chat: RoleChat) -> RoleChatMember? {
-        guard isHome || RoleSessionList.showsAvatar(in: selectedScope) else { return nil }
+        guard !isHome, RoleSessionList.showsAvatar(in: selectedScope) else { return nil }
         let others = chat.others(excluding: session.currentUser?.id)
         return others.count == 1 ? others.first : nil
     }
@@ -839,6 +917,7 @@ struct RoleChatsScreen: View {
         if rooms == nil, isOwner { rooms = await cachedRooms() }
         isLoading = true
         defer { isLoading = false }
+        if isOwner, let list = try? await api.projects() { projects = list }
         do { try await refreshList(forceFull: true) }
         catch is CancellationError { }
         catch {
@@ -935,9 +1014,6 @@ private struct SessionBranchLineShape: Shape {
 }
 
 /// Обёртка для шторки фото: роль в списке — строка, `sheet(item:)` ждёт Identifiable.
-private struct AvatarRoleBox: Identifiable {
-    let id: String
-}
 
 /// Что ряду ролей нужно знать о прокрутке списка.
 private struct ChatStoriesGeometry: Equatable {
@@ -945,6 +1021,10 @@ private struct ChatStoriesGeometry: Equatable {
     var offset: CGFloat
     /// Строка состояния плюс шапка.
     var topInset: CGFloat
+    /// Высота самой прокрутки.
+    var container: CGFloat
+    /// Высота содержимого ленты вместе с добором.
+    var content: CGFloat
     /// На сколько список длиннее экрана.
     var spare: CGFloat
 }
