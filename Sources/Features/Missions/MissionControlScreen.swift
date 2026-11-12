@@ -15,7 +15,6 @@ final class MissionControlModel {
     var coverage: AssertionCoverage?
     var executors: TaskExecutorSummary?
     var activity: ApiTaskActivity?
-    var streams: [RoleChatMessage] = []
     /// Когда получено время миссии: от него тикают секунды идущей работы.
     var timeFetchedAt = Date()
     var loaded = false
@@ -53,16 +52,8 @@ final class MissionControlModel {
         executors = try? await api.taskExecutorSummary(taskId: taskID)
         timeFetchedAt = Date()
         activity = try? await api.taskActivity(taskId: taskID)
-        streams = await loadStreams(taskID: taskID)
         if isOwner { await board.loadContext(taskID: taskID) }
         loaded = true
-    }
-
-    /// Последние сообщения темы задачи: что говорят роли и что отвечает владелец.
-    private func loadStreams(taskID: String) async -> [RoleChatMessage] {
-        guard let chat = try? await api.taskTopic(taskID: taskID) else { return [] }
-        let messages = (try? await api.roleChatMessages(id: chat.id, projection: .list)) ?? []
-        return messages.sorted { ($0.createdAt ?? "") < ($1.createdAt ?? "") }.suffix(15).map { $0 }
     }
 
     func setPaused(_ paused: Bool, taskID: String, isOwner: Bool) async {
@@ -77,23 +68,35 @@ final class MissionControlModel {
     }
 }
 
-/// Mission Control на телефоне: сводка миссии сверху, ниже три вкладки вместо трёх
-/// колонок настольного образца (владелец 05.11.2026): ход сессий, сама миссия и карта.
+/// «Координация» — одно место работы по задаче (владелец 12.11.2026: «давай
+/// сольём вместе»). Раньше было два экрана: «Координация» для командного плана
+/// и Mission Control для плана оркестратора. Теперь вкладки:
+/// «Ход» — сессии исполнителей; «План» — прежняя координация с правкой плана;
+/// «Лента» — лента активности карточки, она же переписка по задаче; «Миссия» —
+/// контракт, журнал и навыки, видна только когда у задачи есть контракт.
 struct MissionControlScreen: View {
+    /// Задача плана (у карточки-ветки это родитель с общим планом).
     let taskID: String
+    /// Карточка, чья лента показывается во вкладке «Лента».
+    var feed: TaskFormViewModel? = nil
+    var allowsPlanChanges = true
+    /// С какой вкладки открыть (из карточки — сразу «Лента»).
+    var initialTab: Tab? = nil
 
-    private enum Tab: String, CaseIterable, Identifiable {
+    enum Tab: String, CaseIterable, Identifiable {
         case run = "Ход"
+        case plan = "План"
+        case feed = "Лента"
         case mission = "Миссия"
-        case map = "Карта"
         var id: String { rawValue }
     }
 
     @State private var model = MissionControlModel()
-    @State private var tab = Tab.run
+    @State private var tab: Tab?
+    /// Данные вкладки «План» — та же модель, что у прежней «Координации».
+    @StateObject private var coordination = CoordinationState()
     @State private var selectedSlot: String?
     @State private var stageSlot: String?
-    @State private var taskChatID: String?
     @State private var draft = ""
     @State private var sending = false
     @State private var sendError: String?
@@ -115,6 +118,23 @@ struct MissionControlScreen: View {
         }
     }
 
+    private var hasContract: Bool { !model.assertions.isEmpty || model.outcome != nil }
+
+    /// Вкладки по наличию данных: без плана нет «Хода» и «Плана», без
+    /// контракта — «Миссии»; «Лента» есть всегда, когда открыта из карточки.
+    private var tabs: [Tab] {
+        var result: [Tab] = []
+        if board.plan != nil { result += [.run, .plan] }
+        if feed != nil { result.append(.feed) }
+        if hasContract { result.append(.mission) }
+        return result.isEmpty ? [feed != nil ? .feed : .run] : result
+    }
+
+    private var currentTab: Tab {
+        let wanted = tab ?? initialTab ?? (board.plan != nil ? .run : .feed)
+        return tabs.contains(wanted) ? wanted : tabs[0]
+    }
+
     private var currentStage: CoordinationStage? {
         let sessions = MissionProgress.sessions(slots: slots)
         if let selectedSlot, sessions.contains(selectedSlot) { return board.stage(selectedSlot) }
@@ -122,31 +142,19 @@ struct MissionControlScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: TFSpacing.lg, pinnedViews: [.sectionHeaders]) {
-                header
-                Section {
-                    switch tab {
-                    case .run: runTab
-                    case .mission: missionTab
-                    case .map: mapTab
-                    }
-                } header: {
-                    tabs
-                }
+        content
+            .coordinationTabBar {
+                if tabs.count > 1 { tabPicker }
             }
-            .padding(.top, TFSpacing.sm)
-            .padding(.bottom, TFSpacing.lg)
-        }
-        .tfScreenBackground()
-        .tfNativeHeader("Mission Control", displayMode: .inline)
-        .hintAnchor(HintAnchorID.missionControlScreen)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if tab == .run, isOwner, let stage = currentStage, stage.subtask != nil { composer(stage) }
-        }
+            .tfScreenBackground()
+            .tfNativeHeader("Координация", displayMode: .inline)
+            .hintAnchor(HintAnchorID.missionControlScreen)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if currentTab == .run, isOwner, let stage = currentStage, stage.subtask != nil { composer(stage) }
+            }
         .refreshable { await model.load(taskID: taskID, isOwner: isOwner) }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -160,15 +168,39 @@ struct MissionControlScreen: View {
                 CoordinationStageSheet(taskID: taskID, slot: stageSlot, model: board, editable: false)
             }
         }
-        .tfSheet(isPresented: Binding(get: { taskChatID != nil }, set: { if !$0 { taskChatID = nil } })) {
-            if let taskChatID { TaskChatSheet(chatID: taskChatID) }
-        }
         .confirmationDialog("Поставить миссию на паузу?", isPresented: $showPauseConfirm, titleVisibility: .visible) {
             Button("На паузу", role: .destructive) {
                 Task { await model.setPaused(true, taskID: taskID, isOwner: isOwner) }
             }
         } message: {
             Text("Идущие этапы будут прерваны, новые не стартуют. Сделанное сохранится.")
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch currentTab {
+        case .plan:
+            CoordinationScreen(state: coordination, taskId: taskID, allowsPlanChanges: allowsPlanChanges,
+                               onOpenTaskControls: { dismiss() })
+        case .feed:
+            if let feed {
+                List {
+                    TaskActivityFeed(viewModel: feed)
+                        .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        case .run, .mission:
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: TFSpacing.lg) {
+                    header
+                    if currentTab == .run { runTab } else { missionTab }
+                }
+                .padding(.top, TFSpacing.sm)
+                .padding(.bottom, TFSpacing.lg)
+            }
         }
     }
 
@@ -256,14 +288,13 @@ struct MissionControlScreen: View {
             .accessibilityHidden(true)
     }
 
-    private var tabs: some View {
-        Picker("Раздел", selection: $tab) {
-            ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
+    private var tabPicker: some View {
+        Picker("Раздел", selection: Binding(get: { currentTab }, set: { tab = $0 })) {
+            ForEach(tabs) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, TFSpacing.screenHorizontal)
         .padding(.vertical, TFSpacing.xs)
-        .tfScreenBackground()
         .accessibilityIdentifier("mission.tabs")
     }
 
@@ -395,7 +426,6 @@ struct MissionControlScreen: View {
             if !model.skills.isEmpty { skillsSection }
             if isOwner, let context = board.context { TaskContextSection(context: context, roleTitle: board.roleTitle(_:)) }
             logSection
-            chatSection
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
     }
@@ -543,48 +573,26 @@ struct MissionControlScreen: View {
         }
     }
 
-    private var chatSection: some View {
-        block("Переписка") {
-            TFActionRow(title: "Открыть переписку по задаче", icon: "bubble.left.and.bubble.right") {
-                Task {
-                    if let chat = try? await APIClient().taskTopic(taskID: taskID) { taskChatID = chat.id }
-                }
-            }
-            .accessibilityIdentifier("mission.task-chat")
-            ForEach(model.streams.suffix(6)) { message in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(message.fromUserName ?? "Роль").tfText(.caption).foregroundStyle(Color.tfDim)
-                    Text(message.text).tfText(.action).foregroundStyle(Color.tfText).lineLimit(4)
-                }
-            }
-        }
-    }
-
-    // MARK: - Карта
-
-    @ViewBuilder
-    private var mapTab: some View {
-        if let plan = board.plan {
-            VStack(alignment: .leading, spacing: TFSpacing.sm) {
-                CoordinationBoardView(plan: plan, model: board, editable: false,
-                                      onSelect: { stageSlot = $0 }, onAdd: { _ in })
-                Text("Только просмотр. Менять состав работы просите оркестратора во вкладке «Ход».")
-                    .tfText(.caption)
-                    .foregroundStyle(Color.tfDim)
-                    .padding(.horizontal, TFSpacing.screenHorizontal)
-            }
-        } else if !model.loading {
-            TFEmptyState(icon: "point.3.connected.trianglepath.dotted", text: "Нет утверждённого плана",
-                         description: "Карта появится после утверждения плана.")
-        }
-    }
-
     private func color(for status: MissionAssertionStatus) -> Color {
         switch status {
         case .pending: return .tfDim
         case .passed: return .tfGreen
         case .failed: return .tfRed
         case .blocked: return .tfOrange
+        }
+    }
+}
+
+private extension View {
+    /// Переключатель вкладок над прокруткой. На iOS 26 — `safeAreaBar`: под ним
+    /// система сама размывает уходящий текст, как под шапкой. Раньше — вставка
+    /// с фоном экрана, иначе текст ленты просвечивал сквозь вкладки.
+    @ViewBuilder
+    func coordinationTabBar<Bar: View>(@ViewBuilder _ bar: () -> Bar) -> some View {
+        if #available(iOS 26.0, *) {
+            safeAreaBar(edge: .top) { bar() }
+        } else {
+            safeAreaInset(edge: .top, spacing: 0) { bar().tfScreenBackground() }
         }
     }
 }

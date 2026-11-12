@@ -57,18 +57,18 @@ struct TaskCardContent: View {
     /// обычный `@State` ей не виден.
     @State private var titleFocus = NoteEditorFocusState()
     @State private var descriptionFocus = NoteEditorFocusState()
-    @State private var commentFocus = NoteEditorFocusState()
     @State private var pendingAction: AgentOwnerActionKind?
     @State private var actionComment = ""
     /// Задача, чей план показан в разделе «План совместной работы»:
     /// координация открывает именно этот план (у дочерней ветки — план
     /// родителя, а не свой).
-    @State private var coordinationTaskID: String?
     /// Mission Control прямо из карточки (владелец 02.11.2026): панель
     /// управления миссией не должна прятаться за шторкой координации.
     @State private var isMissionControlPresented = false
     /// Карточка, чей план открыт в Mission Control; nil — текущая.
     @State private var missionControlPlanTaskID: String?
+    /// С какой вкладки открыть «Координацию» (из ленты карточки — «Лента»).
+    @State private var coordinationTab: MissionControlScreen.Tab?
     @State private var replyingSubtask: ApiSubtask?
     @State private var subtaskReplyText = ""
     @State private var toast: TaskToastMessage?
@@ -256,7 +256,6 @@ struct TaskCardContent: View {
 
     @Environment(RealtimeClient.self) private var realtime
     @Environment(\.scenePhase) private var scenePhase
-    @State private var journalVisibleCount = 50
 
     private var parentBranchPlan: ApiCollaborationPlan? {
         let plan = viewModel.collaborationPlanState.plan ?? viewModel.collaborationPlanState.draftPlan
@@ -417,17 +416,18 @@ struct TaskCardContent: View {
         .modifier(TFSoftTopScrollEdge())
         .navigationBarBackButtonHidden(true)
         .toolbar { if !preview { formToolbarContent } }
-        .tfSheet(isPresented: Binding(
-            get: { coordinationTaskID != nil },
-            set: { if !$0 { coordinationTaskID = nil } }
-        )) {
-            if let id = coordinationTaskID {
-                TaskCoordinationScreen(taskID: id, allowsPlanChanges: viewModel.canUsePlan) { coordinationTaskID = nil }
-            }
-        }
-        .tfSheet(isPresented: $isMissionControlPresented, onDismiss: { missionControlPlanTaskID = nil }) {
+        // Одна «Координация» вместо «Координации» и Mission Control
+        // (владелец 12.11.2026): ход, план, лента-переписка и миссия.
+        .tfSheet(isPresented: $isMissionControlPresented, onDismiss: {
+            missionControlPlanTaskID = nil
+            coordinationTab = nil
+        }) {
             if let id = missionControlPlanTaskID ?? viewModel.taskID {
-                NavigationStack { MissionControlScreen(taskID: id) }
+                NavigationStack {
+                    MissionControlScreen(taskID: id, feed: viewModel, allowsPlanChanges: viewModel.canUsePlan,
+                                         initialTab: coordinationTab)
+                        .navigationDestination(for: AppRoute.self) { routeDestination($0) }
+                }
             }
         }
         .confirmationDialog("Отправить задачу в архив?", isPresented: $isDeleteConfirmationPresented, titleVisibility: .visible) {
@@ -1124,50 +1124,21 @@ struct TaskCardContent: View {
 
         // Лента идёт сразу после связанных задач — это завершающий блок
         // основного сценария карточки.
+        // Полная лента с полем ввода — во вкладке «Лента» «Координации»
+        // (владелец 12.11.2026: «перенести ленту активности в координацию»).
+        // Здесь — последние записи на виду и переход туда.
         collapsibleSection(.journal, title: "Лента активности") {
-                // Было — Enter отправлял комментарий (11.09.2026:
-                // «хочу написать комментарий, не работает»), и клавиша
-                // Return рисовалась синей «Отправить». Владелец
-                // 30.09.2026 переопределил это явно: «Интер не
-                // отправляет сообщения ни в одном месте приложения,
-                // Интер делает только новую строку» — тот же принцип,
-                // что уже в `ChatVoiceComposer.swift` (21.09.2026).
-                // Теперь Enter — обычный перенос строки, отправка —
-                // только явной кнопкой. Кнопке нужен `.borderless`,
-                // иначе `List` отдаёт ей тап по всей строке, включая поле.
-                // Владелец 30.09.2026: «вся карточка как описание» —
-                // тот же `BlockDocumentEditor`, что у названия и
-                // описания. `onSubmit`/Enter здесь нет вообще — Enter
-                // просто новый блок, отправка только кнопкой.
-                HStack(alignment: .bottom) {
-                    BlockDocumentEditor(
-                        blocks: $viewModel.commentBlocks,
-                        focus: commentFocus,
-                        placeholder: "Комментарий",
-                        textColor: UIColor(colorScheme == .light ? Color.tfText : Color.tfSub)
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Отправить") { Task { await viewModel.sendComment() } }
-                        .buttonStyle(.borderless)
-                        .disabled(
-                            !viewModel.isEditing
-                            || viewModel.commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        )
+            TaskActivityFeed(viewModel: viewModel, mode: .preview(count: 3))
+                .listRowSeparator(.hidden)
+            if viewModel.taskID != nil {
+                Button("Вся лента и переписка") {
+                    missionControlPlanTaskID = nil
+                    coordinationTab = .feed
+                    isMissionControlPresented = true
                 }
-                // Пагинация: рендерим только последние 50 записей, чтобы
-                // карточка открывалась мгновенно даже при тысячах записей.
-                // Кнопка «Загрузить ещё» подгружает следующие 50.
-                ForEach(Array(viewModel.journalEntries.suffix(journalVisibleCount))) { entry in
-                    nativeJournalRow(entry)
-                        .listRowSeparator(.hidden)
-                }
-                if journalVisibleCount < viewModel.journalEntries.count {
-                    Button("Загрузить ещё (\(viewModel.journalEntries.count - journalVisibleCount))") {
-                        journalVisibleCount = min(journalVisibleCount + 50, viewModel.journalEntries.count)
-                    }
-                    .buttonStyle(.borderless)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("card.feed.open")
+            }
         }
 
         // Чаты, привязанные к задаче. Секция только ПЕРЕХОДИТ в переписку:
@@ -1577,25 +1548,16 @@ struct TaskCardContent: View {
     /// оркестратора на этом же месте — Mission Control (владелец 05.11.2026).
     @ViewBuilder
     private func coordinationRow(for planTaskID: String) -> some View {
-        let orchestratorOnly = viewModel.collaborationPlanState.plan.map(CoordinationBoard.isOrchestratorOnly) ?? false
         VStack(alignment: .leading, spacing: TFSpacing.xs) {
-            if orchestratorOnly {
-                TFButton("Mission Control", icon: "checklist", variant: .secondary) {
-                    missionControlPlanTaskID = planTaskID
-                    isMissionControlPresented = true
-                }
-                .hintAnchor(HintAnchorID.missionControl)
-                .accessibilityIdentifier("card.plan.mission-control")
-                Text("Вся работа оркестратора: что идёт, что проверено и как вмешаться")
-                    .tfText(.meta)
-            } else {
-                TFButton("Координация", icon: "point.3.connected.trianglepath.dotted", variant: .secondary) {
-                    coordinationTaskID = planTaskID
-                }
-                .accessibilityIdentifier("card.plan.coordination")
-                Text("Что сделано, что дальше, и здесь же меняется план")
-                    .tfText(.meta)
+            TFButton("Координация", icon: "point.3.connected.trianglepath.dotted", variant: .secondary) {
+                missionControlPlanTaskID = planTaskID
+                coordinationTab = nil
+                isMissionControlPresented = true
             }
+            .hintAnchor(HintAnchorID.missionControl)
+            .accessibilityIdentifier("card.plan.coordination")
+            Text("Ход работы, план, переписка по задаче и миссия")
+                .tfText(.meta)
         }
         .padding(.vertical, TFSpacing.xs)
     }
@@ -2097,95 +2059,6 @@ struct TaskCardContent: View {
         }
     }
 
-    /// Плоская строка ленты — без аватарок/цветных плашек `TaskJournalView`
-    /// (та осталась только в мёртвом `TaskDetailScreen`), обычный `Text` в
-    /// `Form`, текст события — тот же словарь §19.2 (`TaskJournalView.eventText`).
-    @ViewBuilder
-    private func nativeJournalRow(_ entry: TaskJournalEntry) -> some View {
-        switch entry {
-        case .comment(let comment):
-            // Сообщение привязанного чата открывает саму переписку: лента
-            // задачи показывает её, но продолжать разговор нужно в чате
-            // (владелец 21.09.2026: «чтобы не комментарии писать в самой
-            // задаче, а в чате переписываться»).
-            if comment.isFromChat, let chatID = comment.chatID {
-                NavigationLink(value: AppRoute.roleChat(id: chatID)) {
-                    journalCommentBody(comment)
-                }
-            } else {
-                journalCommentBody(comment)
-            }
-        case .event(let event):
-            // Кто сделал — обязательно (владелец 22.09.2026: безличное
-            // «выполнил шаг» не говорит, чья это работа). Нет автора —
-            // действие системы. Имя и действие разделены точкой, чтобы не
-            // согласовывать глагол с родом («Система взял»).
-            HStack(alignment: .firstTextBaseline) {
-                (Text(event.actorName?.isEmpty == false ? event.actorName! : "Система").fontWeight(.medium)
-                    + Text(" · ")
-                    + Text(TaskJournalView.eventText(event)))
-                    .tfText(.action).foregroundStyle(Color.tfSub)
-                Spacer()
-                if let date = event.createdAtDate {
-                    Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
-                }
-            }
-        }
-    }
-
-    /// Тело комментария ленты — общее для обычного комментария и для сообщения
-    /// привязанного чата (у второго только добавляется пометка).
-    @ViewBuilder
-    private func journalCommentBody(_ comment: ApiComment) -> some View {
-        // Аватар в ленте активности не нужен: он микроскопичный и тянет
-        // видео-портреты (TFRolePortrait) на каждый комментарий от агента,
-        // что вешало открытие карточки. Имя автора остаётся в шапке
-        // комментария. Аватары остаются там, где они информативны (план).
-        journalCommentContent(comment)
-    }
-
-    @ViewBuilder
-    private func journalCommentContent(_ comment: ApiComment) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(comment.userName?.isEmpty == false ? comment.userName! : "Система")
-                    .tfText(.body).fontWeight(.medium)
-                if comment.isFromChat {
-                    // Пометка нейтральная: синий акцент в приложении не используется.
-                    TFPill("из чата", color: Color.tfSub)
-                }
-                Spacer()
-                if let date = comment.createdAtDate {
-                    Text(TaskDateText.relativeTime(date)).tfText(.meta).foregroundStyle(Color.tfSub)
-                }
-            }
-            let isRole = comment.userId.map { author in
-                author == "u-secretary" || author.hasPrefix("role_") || viewModel.roles.contains { $0.accountID == author }
-            } ?? false
-            TaskRoleReply(text: comment.text, isRole: isRole, serverBlocks: ChatServerBlock.list(from: comment.textBlocks))
-            // ВЛОЖЕНИЯ КОММЕНТАРИЯ. 11.09.2026: лента рисовала только
-            // текст, и приложенные кадры в приложении не показывались
-            // вовсе. Чинить сначала полез в `TaskJournalView.commentCard`
-            // — а он живёт в мёртвом `TaskDetailScreen` и не исполняется;
-            // рабочая лента здесь. Картинки грузит `ChatAttachmentImage`
-            // (умеет ходить с авторизацией, обычный AsyncImage к этому
-            // эндпоинту не годится), прочие файлы — строкой с именем.
-            if let attachments = comment.attachments, !attachments.isEmpty {
-                // В ленте не грузим превью вложений (ChatAttachmentImage) —
-                // они тяжёлые и вешали открытие. Показываем только имена;
-                // открыть вложение можно из чата или из карточки задачи.
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(attachments) { attachment in
-                        Text("📎 \(attachment.fileName)")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfSub)
-                    }
-                }
-                .padding(.top, 4)
-            }
-        }
-    }
-
     private func taskAttachmentButton(_ attachment: ApiAttachment, identifierPrefix: String) -> some View {
         Button {
             Task { await openTaskAttachment(attachment) }
@@ -2597,11 +2470,13 @@ struct TaskCardContent: View {
             }
         }
         if viewModel.taskID != nil {
-            // Mission Control — панель управления миссией. Владелец 02.11.2026:
-            // управлять процессом нужно из карточки, а не через шторку
-            // координации.
-            Button { isMissionControlPresented = true } label: {
-                Label("Mission Control", systemImage: "checklist")
+            // «Координация» — ход, план, лента и миссия (владелец 12.11.2026;
+            // раньше здесь был отдельный Mission Control).
+            Button {
+                coordinationTab = nil
+                isMissionControlPresented = true
+            } label: {
+                Label("Координация", systemImage: "point.3.connected.trianglepath.dotted")
             }
             .accessibilityIdentifier("card.mission-control")
             Button { isPreparationPresented = true } label: {
