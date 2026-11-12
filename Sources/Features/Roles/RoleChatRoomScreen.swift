@@ -191,6 +191,10 @@ struct RoleChatRoomScreen: View {
     /// потока событий п.B1). Коробка меняет состояние молча.
     @State private var eventBatch = ChatEventBatchBox()
     @FocusState private var composerFocused: Bool
+    /// Клавиатура реально на экране. Считаем по системным уведомлениям, а не
+    /// только по фокусу поля: у панели ввода фокус и клавиатура расходятся,
+    /// и тогда тап по пустому месту ничего не сворачивал.
+    @State private var keyboardUp = false
     private let api = APIClient()
 
     private var readingPreview: Bool {
@@ -524,6 +528,20 @@ struct RoleChatRoomScreen: View {
         return nil
     }
 
+    /// Свернуть клавиатуру по тапу в пустое место ленты (владелец 12.11.2026:
+    /// «после отправки сообщения тапнув на пустой край выше клавы мог её
+    /// скрыть, а то она всю дорогу поднята»).
+    ///
+    /// Одного `composerFocused = false` не хватало: поле живёт в нижней панели
+    /// (`safeAreaBar`), и клавиатура оставалась поднятой. Поэтому снимаем ещё
+    /// и первого ответчика у самой клавиатуры — так свёрнутость не зависит от
+    /// того, успело ли состояние фокуса SwiftUI синхронизироваться.
+    private func dismissComposerKeyboard() {
+        composerFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+    }
+
     private var composerContent: some View {
         VStack(spacing: 0) {
             // Карточки назначений личной комнаты (владелец 08.11.2026): роль —
@@ -533,7 +551,7 @@ struct RoleChatRoomScreen: View {
                 ChatChildAssignmentsStrip(chatID: chat.id) { roomID in
                     openRoute?(.roleChat(id: roomID))
                 }
-                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+                .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissComposerKeyboard() }
             }
             // Над лентой, а не поверх неё: подложки нет, и текст под подпись не заходит.
             if let taskID = chat.taskID {
@@ -543,14 +561,14 @@ struct RoleChatRoomScreen: View {
                         .padding(.horizontal, TFSpacing.screenHorizontal)
                         .padding(.vertical, TFSpacing.sm)
                 }
-                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+                .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissComposerKeyboard() }
             }
             // Панель участников переехала в корень раздела «Чаты» и стала
             // панелью комнат (владелец 21.10.2026); состав чата — в «О чате».
             // Рабочий план роли — висячей карточкой поверх ленты (28.10.2026):
             // лента прокручивается под ней, по бокам остаётся прозрачной.
             messageScroll
-                .keyboardDismissShield(isActive: composerFocused) { composerFocused = false }
+                .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissComposerKeyboard() }
                 // Панель ввода — штатная нижняя панель (`safeAreaBar`): стекло
                 // и затухание у нижней кромки рисует система. `safeAreaInset`
                 // не годится: он обрезает ленту по верхнему краю панели, и
@@ -559,6 +577,12 @@ struct RoleChatRoomScreen: View {
                 .chatComposerBar {
                     composerFooter
                 }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
         }
     }
 
