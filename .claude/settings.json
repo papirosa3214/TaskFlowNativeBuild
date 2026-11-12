@@ -42,6 +42,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__xcode__RunProject",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check_sim_target.py\"",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }
