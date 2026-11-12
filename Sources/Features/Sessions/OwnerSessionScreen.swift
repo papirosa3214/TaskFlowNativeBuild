@@ -22,6 +22,15 @@ struct OwnerSessionScreen: View {
     @State private var model = SessionViewModel(apiClient: SessionAPIClient(), realtime: SessionRealtimeClient())
     @State private var voice = RoleChatVoiceController()
     @FocusState private var composerFocused: Bool
+    /// Клавиатура реально на экране — как в комнате чата (d431f8c4).
+    @State private var keyboardUp = false
+    /// Когда начался текущий ответ — для таймера «Работает» в пилюле.
+    @State private var workStartedAt: Date?
+    /// Лента у низа — иначе у пилюли кружок «вниз», как в комнате чата.
+    @State private var isNearBottom = true
+    @State private var scrollDownTick = 0
+    /// Замер контекста сессии для кольца в поле ввода (как в комнате).
+    @State private var context: ChatContextSnapshot?
     @Environment(\.dismiss) private var dismiss
     @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     /// Метки этой сессии (название, проект, закрепление) — из списка сессий.
@@ -64,15 +73,60 @@ struct OwnerSessionScreen: View {
             // Боковой ползунок прокрутки владельцу мешает (12.11.2026).
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            // Тап в ленту сворачивает клавиатуру — тот же приём, что в комнате
+            // (владелец 12.11.2026: «убрать клавиатуру никак не могу»).
+            .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissKeyboard() }
             .onChange(of: model.timeline.count) { _, _ in scrollToEnd(proxy) }
             .onChange(of: model.state.transientAssistantText) { _, _ in scrollToEnd(proxy) }
+            // «У низа» — по тем же правилам, что лента комнаты чата
+            // (`ChatFeedScrollPolicy`, с верхним и нижним отступами): кружок
+            // «вниз» у низа прятался не всегда (владелец 12.11.2026). Смена
+            // пишется в журнал телефона — если кружок опять не спрячется,
+            // будет видно, что считала лента.
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                ChatFeedScrollPolicy.position(contentHeight: geometry.contentSize.height,
+                                              offset: geometry.contentOffset.y,
+                                              viewport: geometry.containerSize.height,
+                                              insetTop: geometry.contentInsets.top,
+                                              insetBottom: geometry.contentInsets.bottom).isNearBottom
+            } action: { _, near in
+                isNearBottom = near
+                ClientLog.shared.add("session=\(model.activeSessionID ?? "new") scroll:nearBottom=\(near)")
+            }
+            .onChange(of: scrollDownTick) { _, _ in
+                withAnimation(TFMotion.standard) { proxy.scrollTo(model.isStreaming ? Self.liveID : (model.timeline.last?.id ?? Self.liveID), anchor: .bottom) }
+            }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
                 withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .top) }
                 scrollTarget = nil
             }
         }
-        .safeAreaInset(edge: .bottom) { composer }
+        .safeAreaInset(edge: .bottom) {
+            // Зазор между полем ввода и клавиатурой / низом экрана.
+            // Та же нижняя панель, что в комнате чата (владелец 12.11.2026:
+            // «готовая панель ввода с верхней пилюлей — забрать и перенести»):
+            // статусная пилюля над полем ввода и само поле.
+            VStack(spacing: 0) {
+                ChatComposerPill(
+                    plans: [], members: [], status: .empty,
+                    onDeletePlan: { _ in }, onOpenChat: { _ in },
+                    onSendNow: { _ in }, onRemove: { _ in },
+                    onStop: model.isStreaming ? { Task { await model.abort() } } : nil,
+                    showsScrollDown: !isNearBottom,
+                    onScrollDown: { scrollDownTick += 1 },
+                    isWorking: model.isStreaming,
+                    workStartedAt: workStartedAt
+                )
+                composer.padding(.bottom, TFSpacing.sm)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            keyboardUp = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
+        }
         .tfScreenBackground()
         .tfNativeHeader(headerTitle, displayMode: .inline)
         // Внутри сессии нижней панели вкладок нет (владелец 08.11.2026,
@@ -135,13 +189,15 @@ struct OwnerSessionScreen: View {
             await reloadSummary()
             projects = (try? await APIClient().projects()) ?? []
             await model.loadModels()
+            await reloadContext()
         }
         // Внутри сессии нижней панели вкладок нет — как в комнате чата
         // (владелец 08.11.2026: панель только на главных экранах).
         .onAppear { ChatSectionState.shared.hold(Self.tabBarHoldKey) }
         // Ответ закончен — перечитываем снимок: в нём ответ уже с разметкой.
         .onChange(of: model.isStreaming) { _, streaming in
-            if !streaming { Task { await model.refresh() } }
+            workStartedAt = streaming ? Date() : nil
+            if !streaming { Task { await model.refresh(); await reloadContext() } }
         }
         .onChange(of: voiceSession?.presentation.isActive ?? false) { _, active in
             if !active { Task { await model.refresh() } }
@@ -153,6 +209,11 @@ struct OwnerSessionScreen: View {
     }
 
     private static let liveID = "owner-session-live"
+
+    private func dismissKeyboard() {
+        composerFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
     /// Ключ держателя скрытия нижней панели для сессии владельца.
     private static let tabBarHoldKey = "owner.session"
 
@@ -229,6 +290,11 @@ struct OwnerSessionScreen: View {
         return url
     }
 
+    private func reloadContext() async {
+        guard let id = model.activeSessionID else { return }
+        context = try? await SessionAPIClient().context(sessionID: id)
+    }
+
     private func reloadSummary() async {
         guard let id = model.activeSessionID,
               let list = try? await SessionAPIClient().listSessions() else { return }
@@ -256,6 +322,9 @@ struct OwnerSessionScreen: View {
             onSendText: { Task { await model.send() } },
             onSendVoice: { _ in false },
             onDiscardVoice: { _ in },
+            contextControls: AnyView(ChatContextControl(snapshot: context, roleName: "Помощник", loadError: nil) {
+                Task { await reloadContext() }
+            }),
             isResponding: model.isStreaming,
             onStop: { Task { await model.abort() } },
             focus: $composerFocused

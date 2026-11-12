@@ -168,6 +168,13 @@ final class SessionAPIClient: @unchecked Sendable {
         let _: SessionAck = try await request(method: "PATCH", path: "/api/sessions/\(id)", body: patch)
     }
 
+    /// Замер контекста сессии — в форме замера чата (`ChatContextSnapshot`).
+    func context(sessionID: String) async throws -> ChatContextSnapshot {
+        struct Envelope: Decodable { let context: ChatContextSnapshot }
+        let response: Envelope = try await requestDecoding(method: "GET", path: "/api/sessions/\(sessionID)/context")
+        return response.context
+    }
+
     func listSessions() async throws -> SessionListResponse {
         try await request(method: "GET", path: "/api/sessions")
     }

@@ -129,13 +129,15 @@ struct ChatVoiceComposer: View {
             if circle {
                 Image(systemName: sessionLook ? "plus" : "slider.horizontal.3")
                     .tfTypeFont(size: 19, weight: .regular)
-                    .foregroundStyle(Color.secondary)
+                    // В сессиях плюс белый, как микрофон (владелец 12.11.2026).
+                    .foregroundStyle(sessionLook ? Color.white : Color.secondary)
                     // Тот же размер, что у правого кружка компактной панели:
                     // были 40 против 50, кружки разной высоты (владелец 12.11.2026).
                     .frame(width: Self.compactKnobSize, height: Self.compactKnobSize)
                     .voiceCircleSurface()
             } else {
                 promptIcon(sessionLook ? "plus" : "slider.horizontal.3")
+                    .foregroundStyle(sessionLook ? Color.white : Color.secondary)
             }
         }
         .accessibilityLabel("Действия чата" + (workMode.map { ": " + $0.wrappedValue.title } ?? ""))

@@ -97,16 +97,20 @@ struct ChatComposerPill: View {
         // Два вида пилюли (владелец 12.11.2026): полный — словами, компактный —
         // значками и цифрами. Пилюля не шире места между краями экрана:
         // показывается первый вид, который влезает, и чат не растягивается.
+        // Три ступени по ширине телефона (владелец 12.11.2026: «что сможет
+        // помещаться, то и помещается»): всё словами; «Работает» словами, а
+        // остальное значками и числами; всё значками и числами.
         ViewThatFits(in: .horizontal) {
             pillBody(compact: false)
+            pillBody(compact: true, keepsWorkingText: true)
             pillBody(compact: true)
         }
     }
 
-    private func pillBody(compact: Bool) -> some View {
+    private func pillBody(compact: Bool, keepsWorkingText: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
-                let segments = segmentViews(compact: compact)
+                let segments = segmentViews(compact: compact, keepsWorkingText: keepsWorkingText)
                 ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
                     if index > 0 {
                         Rectangle().fill(Color.tfStroke).frame(width: 1, height: 16)
@@ -127,9 +131,9 @@ struct ChatComposerPill: View {
         [isWorking, !running.isEmpty, onStop != nil, !plans.isEmpty, !status.queued.isEmpty]
     }
 
-    private func segmentViews(compact: Bool) -> [AnyView] {
+    private func segmentViews(compact: Bool, keepsWorkingText: Bool = false) -> [AnyView] {
         var views: [AnyView] = []
-        if isWorking { views.append(AnyView(workingSegment(compact: compact))) }
+        if isWorking { views.append(AnyView(workingSegment(compact: compact && !keepsWorkingText))) }
         if !running.isEmpty {
             views.append(AnyView(segment(symbol: "person.2",
                                          text: compact ? "\(running.count)" : Self.runningText(running.count),
