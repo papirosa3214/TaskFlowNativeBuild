@@ -77,6 +77,16 @@ printf 'Источник кода: зеркало github (%s). Приложен�
 # (владелец 12.11.2026: «с нуля очень сильно грузятся, Мак кипяток»).
 xcodegen generate --use-cache
 
+# Правила сборки владельца (12.11.2026): одна сборка за раз, только
+# инкрементальная, параллелизм `-jobs 2`, без clean и удаления DerivedData.
+# Уже идёт xcodebuild или тестовый раннер — не начинаем вторую сборку.
+if pgrep -x xcodebuild >/dev/null || pgrep -f 'xctest|XCTRunner' >/dev/null; then
+  printf '\n\033[31m✗ Уже идёт сборка или тесты — вторую не запускаю:\033[0m\n'
+  pgrep -fl 'xcodebuild|xctest|XCTRunner' | grep -v xcodebuildmcp || true
+  exit 1
+fi
+BUILD_STARTED=$SECONDS
+
 шаг "Собираю и подписываю ($CONFIGURATION)"
 # `-allowProvisioningUpdates` — чтобы xcodebuild мог САМ перевыпустить профиль
 # бесплатной подписи. Без флага, когда профиль истёк, сборка падает на
@@ -95,8 +105,11 @@ xcodebuild \
   -configuration "$CONFIGURATION" \
   -destination "id=$DEVICE_ID" \
   -derivedDataPath build_device \
+  -jobs 2 \
   -allowProvisioningUpdates \
   build
+printf '\n▸ Сборка: %s с (команда: xcodebuild -configuration %s -derivedDataPath build_device -jobs 2 build)\n' \
+  "$((SECONDS - BUILD_STARTED))" "$CONFIGURATION"
 
 APP="build_device/Build/Products/$CONFIGURATION-iphoneos/TaskFlow.app"
 if [ ! -d "$APP" ]; then
