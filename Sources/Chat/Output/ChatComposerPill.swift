@@ -51,14 +51,17 @@ struct ChatComposerPill: View {
                 Color.clear.frame(height: 0)
             }
         } else {
-            VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                if expanded { panel }
-                // Пилюля по ширине содержимого; с кружком «вниз» или с
-                // отложенным сообщением тянется, и ряд занимает всю ширину.
-                // Одно стеклянное семейство: кружок отпочковывается от пилюли.
-                // Кружок на фиксированном расстоянии от пилюли, стекло не
-                // сливается (как в T3 Code, владелец 11.11.2026).
-                TFGlassGroup(spacing: TFSpacing.sm) {
+            // Пилюля сама раскрывается в чек-лист и сворачивается обратно в
+            // пилюлю — одно стекло перетекает (glassEffectID), без отдельной
+            // плашки над пилюлей (владелец 11.11.2026: «пилюля должна сразу
+            // раскрывать чек-лист… а не плашка, на которую надо нажать»).
+            TFGlassGroup(spacing: TFSpacing.sm) {
+                if expanded {
+                    panel
+                        .tfGlassID("pill", in: glassNamespace)
+                } else {
+                    // Кружок на фиксированном расстоянии от пилюли, стекло не
+                    // сливается (как в T3 Code, владелец 11.11.2026).
                     HStack(spacing: TFSpacing.md) {
                         // Пилюля по центру над полем ввода (владелец 11.11.2026).
                         Spacer(minLength: 0)
@@ -73,6 +76,7 @@ struct ChatComposerPill: View {
                     .frame(minHeight: TFHitTarget.min)
                 }
             }
+            .animation(TFMotion.standard, value: expanded)
             .animation(TFMotion.standard, value: stretches)
             .animation(TFMotion.standard, value: showsScrollDown)
             .animation(TFMotion.standard, value: segmentKey)
@@ -90,9 +94,19 @@ struct ChatComposerPill: View {
     /// Плавающая стеклянная капсула из сегментов через тонкие разделители:
     /// [люди · «Работают 2 роли»] | [Стоп] | [☑ 2/5] | [1 отложено].
     private var pill: some View {
+        // Два вида пилюли (владелец 12.11.2026): полный — словами, компактный —
+        // значками и цифрами. Пилюля не шире места между краями экрана:
+        // показывается первый вид, который влезает, и чат не растягивается.
+        ViewThatFits(in: .horizontal) {
+            pillBody(compact: false)
+            pillBody(compact: true)
+        }
+    }
+
+    private func pillBody(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
-                let segments = segmentViews
+                let segments = segmentViews(compact: compact)
                 ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
                     if index > 0 {
                         Rectangle().fill(Color.tfStroke).frame(width: 1, height: 16)
@@ -113,19 +127,25 @@ struct ChatComposerPill: View {
         [isWorking, !running.isEmpty, onStop != nil, !plans.isEmpty, !status.queued.isEmpty]
     }
 
-    private var segmentViews: [AnyView] {
+    private func segmentViews(compact: Bool) -> [AnyView] {
         var views: [AnyView] = []
-        if isWorking { views.append(AnyView(workingSegment)) }
+        if isWorking { views.append(AnyView(workingSegment(compact: compact))) }
         if !running.isEmpty {
-            views.append(AnyView(segment(symbol: "person.2", text: Self.runningText(running.count), id: "running")))
+            views.append(AnyView(segment(symbol: "person.2",
+                                         text: compact ? "\(running.count)" : Self.runningText(running.count),
+                                         id: "running", label: Self.runningText(running.count))))
         }
         if let onStop {
             views.append(AnyView(
                 Button(action: onStop) {
-                    Text("Стоп").padding(.horizontal, TFSpacing.md).frame(minHeight: Self.segmentHeight)
-                        .tfText(.meta).foregroundStyle(Color.tfChatText).contentShape(Rectangle())
+                    Group {
+                        if compact { Image(systemName: "stop.fill") } else { Text("Стоп") }
+                    }
+                    .padding(.horizontal, TFSpacing.md).frame(minHeight: Self.segmentHeight)
+                    .tfText(.meta).foregroundStyle(Color.tfChatText).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Стоп")
                 .accessibilityIdentifier("chat.composerPill.stop")
             ))
         }
@@ -134,14 +154,14 @@ struct ChatComposerPill: View {
                                          text: "\(planDone)/\(planTotal)", id: "plan")))
         }
         if !status.queued.isEmpty {
-            views.append(AnyView(queuedSegment))
+            views.append(AnyView(queuedSegment(compact: compact)))
         }
         return views
     }
 
     /// «Работает · 0:42»: значок пульсирует, таймер тикает раз в секунду
     /// только здесь — лента и остальная пилюля не перерисовываются.
-    private var workingSegment: some View {
+    private func workingSegment(compact: Bool) -> some View {
         Button {
             withAnimation(TFMotion.standard) { expanded.toggle() }
         } label: {
@@ -151,7 +171,8 @@ struct ChatComposerPill: View {
                     .accessibilityHidden(true)
                 if let start = workStartedAt {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text("Работает · \(Self.clock(from: start, to: context.date))")
+                        Text(compact ? Self.clock(from: start, to: context.date)
+                                     : "Работает · \(Self.clock(from: start, to: context.date))")
                             .monospacedDigit()
                     }
                 } else {
@@ -176,11 +197,12 @@ struct ChatComposerPill: View {
 
     /// Ярлычок отложенных сообщений: значок и счётчик; тап открывает окошко
     /// с полным текстом и кнопками «Отправить сейчас» / «Убрать».
-    private var queuedSegment: some View {
+    private func queuedSegment(compact: Bool) -> some View {
         Button { showsQueued = true } label: {
             HStack(spacing: TFSpacing.xs) {
                 Image(systemName: "bubble.left").accessibilityHidden(true)
-                Text(status.queued.count == 1 ? "1 сообщение" : "\(status.queued.count) сообщ.").lineLimit(1)
+                Text(compact ? "\(status.queued.count)"
+                     : (status.queued.count == 1 ? "1 сообщение" : "\(status.queued.count) сообщ.")).lineLimit(1)
             }
             .tfText(.meta)
             .foregroundStyle(Color.tfChatText)
@@ -209,7 +231,7 @@ struct ChatComposerPill: View {
     }
 
     /// Сегмент-кнопка: нажатие раскрывает и сворачивает панель.
-    private func segment(symbol: String?, text: String, id: String) -> some View {
+    private func segment(symbol: String?, text: String, id: String, label: String? = nil) -> some View {
         Button {
             withAnimation(TFMotion.standard) { expanded.toggle() }
         } label: {
@@ -224,7 +246,7 @@ struct ChatComposerPill: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(text)
+        .accessibilityLabel(label ?? text)
         .accessibilityValue(expanded ? "Раскрыто" : "Свёрнуто")
         .accessibilityIdentifier("chat.composerPill.\(id)")
     }
@@ -245,12 +267,32 @@ struct ChatComposerPill: View {
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !plans.isEmpty {
-                section("План")
+                // Чек-лист открыт сразу; нажатие на строку плана сворачивает
+                // всё обратно в пилюлю.
                 ChatWorkPlanRows(plans: plans, members: members,
-                                 onDelete: onDeletePlan)
+                                 initiallyExpanded: true,
+                                 onDelete: onDeletePlan,
+                                 onHeaderTap: collapse)
             }
             if !running.isEmpty {
-                section("Работают")
+                if plans.isEmpty {
+                    Button(action: collapse) {
+                        HStack {
+                            section("Работают")
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.down")
+                                .tfText(.meta)
+                                .foregroundStyle(Color.tfDim)
+                                .padding(.trailing, TFSpacing.lg)
+                                .padding(.top, TFSpacing.sm)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Свернуть")
+                } else {
+                    section("Работают")
+                }
                 ForEach(running) { item in
                     TFListRow(title: runningLine(item), titleStyle: .action,
                               verticalPadding: 0, minHeight: TFHitTarget.min,
@@ -262,6 +304,10 @@ struct ChatComposerPill: View {
         .padding(.vertical, TFSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .voiceRoundedSurface(cornerRadius: TFRadius.xl)
+    }
+
+    private func collapse() {
+        withAnimation(TFMotion.standard) { expanded = false }
     }
 
     private func section(_ title: String) -> some View {

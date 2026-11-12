@@ -86,6 +86,9 @@ struct ChatWorkPlanRows: View {
     /// Долгое нажатие → «Удалить чек-лист». Нет обработчика — нет пункта
     /// (отладочная галерея кадров).
     var onDelete: ((ChatWorkPlan) -> Void)? = nil
+    /// Нажатие на строку плана: в пилюле над полем ввода — свернуть чек-лист
+    /// обратно в пилюлю (владелец 11.11.2026). Нет — строка раскрывает пункты.
+    var onHeaderTap: (() -> Void)? = nil
     @State private var expanded: Set<String> = []
 
     var body: some View {
@@ -123,6 +126,7 @@ struct ChatWorkPlanRows: View {
     private func row(_ plan: ChatWorkPlan) -> some View {
         let isOpen = expanded.contains(plan.roleID)
         return Button {
+            if let onHeaderTap { onHeaderTap(); return }
             withAnimation(TFMotion.standard) {
                 if isOpen { expanded.remove(plan.roleID) } else { expanded.insert(plan.roleID) }
             }
