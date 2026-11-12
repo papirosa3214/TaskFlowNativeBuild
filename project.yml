@@ -88,6 +88,9 @@ targets:
       - package: SDWebImageSwiftUI
       - package: SDWebImageWebPCoder
       - package: LiveKit
+      # Движок сессий владельца из прототипа NewChatTF (владелец 12.11.2026:
+      # «из помощника — обычные сессии»): модели, события, команды.
+      - package: NewChatCore
       # Локальная база: `Sources/Core/Store/` — хранение ответов сервера,
       # отпечатков и курсоров (LOCK-LOCAL-DB-SYNC-20261031).
       - package: GRDB
@@ -377,6 +380,8 @@ targets:
         GENERATE_INFOPLIST_FILE: true
 
 packages:
+  NewChatCore:
+    path: Packages/NewChatCore
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.18.0

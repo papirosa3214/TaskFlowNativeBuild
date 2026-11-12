@@ -1,0 +1,601 @@
+import Foundation
+import NewChatCore
+import Observation
+
+struct SessionTimelineItem: Identifiable, Equatable {
+    enum Kind: Equatable { case message, tool, result }
+
+    let id: String
+    let entryID: String?
+    let kind: Kind
+    let role: String
+    let title: String
+    let text: String
+    let isError: Bool
+}
+
+struct SessionLiveActivity: Identifiable, Equatable {
+    enum Kind: Equatable { case tool, queue, retry, compaction, unknown }
+    enum Status: Equatable { case running, completed, failed }
+
+    let id: String
+    let kind: Kind
+    let title: String
+    let detail: String
+    let status: Status
+}
+
+enum SessionSheet: String, Identifiable {
+    case tree
+    var id: String { rawValue }
+}
+
+@MainActor
+@Observable
+final class SessionViewModel {
+    private(set) var state = SessionState(snapshot: nil)
+    private(set) var sessions: [SessionSummary] = []
+    private(set) var liveActivities: [SessionLiveActivity] = []
+    private(set) var isLoading = false
+    private(set) var models: [RuntimeModel] = []
+    private(set) var isLoadingModels = false
+    /// Ошибка каталога моделей не всплывает баннером: она нужна только в шторке
+    /// выбора, а подпись модели в поле ввода живёт и без каталога.
+    private(set) var modelsError: String?
+    var isModelPickerPresented = false
+    var composerText = ""
+    var promptMode: SessionPromptMode = .prompt
+    var presentedSheet: SessionSheet?
+    var errorMessage: String?
+
+    private let apiClient: SessionAPIClient
+    private let realtime: SessionRealtimeClient
+    private var hasStarted = false
+    private var pendingPrompt: PromptSessionRequest?
+
+    init(apiClient: SessionAPIClient, realtime: SessionRealtimeClient) {
+        self.apiClient = apiClient
+        self.realtime = realtime
+    }
+
+    var activeSessionID: String? { state.snapshot?.id }
+    var isStreaming: Bool { state.snapshot?.isStreaming == true }
+
+    // MARK: - Модель сессии
+
+    /// Модель, на которой идёт тред. Источник — сервер: Pi держит её в сессии,
+    /// поэтому переживает перезапуск и видна в истории.
+    var currentModel: SessionModelRef? { state.snapshot?.model }
+
+    /// Подпись модели для поля ввода: имя из каталога, иначе id.
+    var currentModelTitle: String {
+        guard let currentModel else { return "Модель" }
+        return modelTitle(provider: currentModel.provider, id: currentModel.id)
+    }
+
+    func modelTitle(provider: String, id: String) -> String {
+        models.first { $0.provider == provider && $0.id == id }?.displayName ?? id
+    }
+
+    /// Доступные модели по провайдерам: только те, чей провайдер авторизован, —
+    /// остальные всё равно не ответят.
+    struct ModelGroup: Identifiable {
+        let id: String
+        let title: String
+        let models: [RuntimeModel]
+    }
+
+    var availableModelGroups: [ModelGroup] {
+        let available = models.filter(\.available)
+        let grouped = Dictionary(grouping: available, by: \.provider)
+        return grouped
+            .map { provider, list in
+                ModelGroup(
+                    id: provider,
+                    title: Self.providerTitle(provider),
+                    models: list.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+                )
+            }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+
+    func loadModels() async {
+        guard models.isEmpty else { return }
+        isLoadingModels = true
+        defer { isLoadingModels = false }
+        do {
+            // Каталог моделей — общий с остальным TaskFlow.
+            models = try await APIClient().runtimeModels()
+            modelsError = nil
+        } catch {
+            modelsError = error.localizedDescription
+        }
+    }
+
+    /// Смена модели идёт через сервер: он проверяет авторизацию провайдера и
+    /// пишет model_change в транскрипт. Ошибку показываем в шторке выбора.
+    func selectModel(provider: String, id: String) async throws {
+        guard let sessionID = activeSessionID else { return }
+        let response = try await apiClient.setSessionModel(
+            sessionID: sessionID,
+            request: SetSessionModelRequest(requestId: UUID().uuidString, provider: provider, model: id)
+        )
+        installSnapshot(response.session)
+    }
+
+    static func providerTitle(_ provider: String) -> String {
+        providerNames[provider] ?? provider
+    }
+
+    private static let providerNames: [String: String] = [
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "openai-codex": "OpenAI Codex",
+        "minimax": "MiniMax",
+        "opencode-go": "OpenCode Go",
+        "opencode": "OpenCode",
+        "google": "Google",
+        "deepseek": "DeepSeek",
+        "openrouter": "OpenRouter",
+        "ollama": "Ollama",
+        "xai": "xAI",
+        "moonshot": "Moonshot",
+        "mistral": "Mistral",
+        "groq": "Groq",
+        "cerebras": "Cerebras",
+        "amazon-bedrock": "Amazon Bedrock",
+        "azure": "Azure",
+        "zai": "Z.ai",
+    ]
+
+    var title: String {
+        if let name = state.snapshot?.name, !name.isEmpty { return name }
+        if let name = activeSummary?.name, !name.isEmpty { return name }
+        switch activeSummary?.relation {
+        case .fork: return "Ответвлённая сессия"
+        case .subagent: return "Дочерняя сессия"
+        default: return "Помощник владельца"
+        }
+    }
+
+    /// Подзаголовок нативной шапки: рабочий каталог и модель, без своих строк состояния.
+    var subtitle: String {
+        guard let snapshot = state.snapshot else { return "" }
+        return [snapshot.cwd, modelName].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    var modelName: String? {
+        if let currentModel { return currentModelTitle }
+        guard let snapshot = state.snapshot else { return nil }
+        for entry in snapshot.entries.reversed() {
+            guard case let .object(object) = entry else { continue }
+            if object.string("type") == "model_change", let model = object.string("modelId") {
+                return model
+            }
+            if let message = object.object("message"),
+               message.string("role") == "assistant",
+               let model = message.string("model") {
+                return model
+            }
+        }
+        return nil
+    }
+
+    var activeSummary: SessionSummary? {
+        sessions.first { $0.id == activeSessionID }
+    }
+    var contextDetails: String {
+        guard let snapshot = state.snapshot else { return "" }
+        var model: String?
+        var thinking: String?
+        for entry in snapshot.entries.reversed() {
+            guard case let .object(object) = entry else { continue }
+            if thinking == nil {
+                thinking = object.string("thinkingLevel")
+                    ?? object.object("message")?.string("thinkingLevel")
+            }
+            if model == nil {
+                if object.string("type") == "model_change" {
+                    model = object.string("modelId")
+                } else if let message = object.object("message"), message.string("role") == "assistant" {
+                    model = message.string("model")
+                }
+            }
+            if model != nil, thinking != nil { break }
+        }
+        return [snapshot.cwd, model, thinking.map { "thinking: \($0)" }]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+    var isSendingCommand: Bool {
+        if case .sending = state.commandDelivery { return true }
+        return false
+    }
+    var childSessions: [SessionSummary] {
+        guard let sessionFile = state.snapshot?.sessionFile else { return [] }
+        return sessions.filter { $0.parentSession == sessionFile }
+    }
+
+    var timeline: [SessionTimelineItem] {
+        let persisted = (state.snapshot?.entries ?? []).flatMap(Self.items(from:))
+        let live = state.messages.enumerated().map { index, message in
+            SessionTimelineItem(
+                id: "live-\(index)-\(message.role)-\(message.text.hashValue)",
+                entryID: nil,
+                kind: .message,
+                role: message.role,
+                title: Self.roleTitle(message.role),
+                text: message.text,
+                isError: false
+            )
+        }
+        return persisted + live
+    }
+
+    /// Точка входа — список сессий. Корневая сессия открывается только если списка нет.
+    func start() async {
+        guard !hasStarted else { return }
+        hasStarted = true
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            sessions = try await apiClient.listSessions().sessions
+            if sessions.isEmpty {
+                let response = try await apiClient.openRoot()
+                installSnapshot(response.session)
+                sessions = try await apiClient.listSessions().sessions
+            }
+            realtime.connect(
+                onEvent: { [weak self] event in self?.receive(event) },
+                onReconnect: { [weak self] in await self?.recoverAfterReconnect() }
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func reload() async {
+        await refreshSessions()
+    }
+
+    func openRoot() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await apiClient.openRoot()
+            installSnapshot(response.session)
+            await refreshSessions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func select(_ sessionID: String) async {
+        guard sessionID != activeSessionID else {
+            presentedSheet = nil
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let response = try await apiClient.snapshot(sessionID: sessionID)
+            installSnapshot(response.session)
+            presentedSheet = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func send() async {
+        guard let sessionID = activeSessionID else { return }
+        let text = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let request: PromptSessionRequest
+        if let pendingPrompt, pendingPrompt.text == text, pendingPrompt.mode == promptMode {
+            request = pendingPrompt
+        } else {
+            request = PromptSessionRequest(requestId: UUID().uuidString, text: text, mode: promptMode)
+            pendingPrompt = request
+        }
+        let requestID = request.requestId
+        state.markCommandStarted(requestId: requestID)
+        do {
+            let response = try await apiClient.prompt(
+                sessionID: sessionID,
+                request: request
+            )
+            state.markCommandAcknowledged(requestId: response.requestId)
+            pendingPrompt = nil
+            composerText = ""
+        } catch let error as URLError where error.code == .timedOut {
+            state.markCommandTimedOut(requestId: requestID)
+            errorMessage = "Сервер ещё мог принять сообщение. Состояние будет уточнено после переподключения."
+        } catch {
+            state.markCommandFailed(requestId: requestID, message: error.localizedDescription)
+            pendingPrompt = nil
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func abort() async {
+        guard let sessionID = activeSessionID else { return }
+        let requestID = UUID().uuidString
+        do {
+            _ = try await apiClient.abort(
+                sessionID: sessionID,
+                request: AbortSessionRequest(requestId: requestID)
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func branch(from entryID: String) async {
+        guard let sessionID = activeSessionID else { return }
+        do {
+            let response = try await apiClient.branch(
+                sessionID: sessionID,
+                request: SessionEntryCommandRequest(requestId: UUID().uuidString, entryId: entryID)
+            )
+            installSnapshot(response.session)
+            presentedSheet = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func fork(from entryID: String) async {
+        guard let sessionID = activeSessionID else { return }
+        do {
+            let response = try await apiClient.fork(
+                sessionID: sessionID,
+                request: SessionEntryCommandRequest(requestId: UUID().uuidString, entryId: entryID)
+            )
+            sessions = try await apiClient.listSessions().sessions
+            installSnapshot(response.session)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func receive(_ event: SessionEventEnvelope) {
+        recordActivity(event)
+        SessionReducer.apply(event, to: &state)
+        if event.sessionId == activeSessionID, event.type == "agent_settled" {
+            Task { await refreshSnapshot() }
+        } else if event.sessionId != activeSessionID, event.type == "agent_settled" {
+            Task { await refreshSessions() }
+        }
+    }
+
+    private func recoverAfterReconnect() async {
+        guard let sessionID = activeSessionID else { return }
+        do {
+            if let cursor = state.lastCursor {
+                let payload = try await apiClient.events(sessionID: sessionID, after: cursor)
+                SessionReducer.apply(payload, to: &state)
+                if state.needsSnapshotReset { await refreshSnapshot() }
+            } else {
+                await refreshSnapshot()
+            }
+            await refreshSessions()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func refreshSnapshot() async {
+        guard let sessionID = activeSessionID else { return }
+        do {
+            let response = try await apiClient.snapshot(sessionID: sessionID)
+            installSnapshot(response.session, preservingCursor: true)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func refreshSessions() async {
+        do {
+            sessions = try await apiClient.listSessions().sessions
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func installSnapshot(_ snapshot: SessionSnapshot, preservingCursor: Bool = false) {
+        let cursor = preservingCursor ? state.lastCursor : nil
+        let seen = preservingCursor ? state.seenCursors : []
+        let childActivity = state.childActivity
+        let delivery = state.commandDelivery
+        state = SessionState(snapshot: snapshot)
+        state.lastCursor = cursor
+        state.seenCursors = seen
+        state.childActivity = childActivity
+        state.commandDelivery = delivery
+        liveActivities = []
+        promptMode = snapshot.isStreaming ? .followUp : .prompt
+    }
+
+    private func recordActivity(_ event: SessionEventEnvelope) {
+        guard event.sessionId == activeSessionID else { return }
+        let activity: SessionLiveActivity?
+        switch event.type {
+        case "tool_start", "tool_update", "tool_end":
+            let id = event.payload.string("toolCallId") ?? event.cursor
+            let name = event.payload.string("toolName") ?? "Инструмент"
+            let detail = event.payload["partialResult"]?.compactDescription
+                ?? event.payload["result"]?.compactDescription
+                ?? event.payload["args"]?.compactDescription
+                ?? ""
+            let isError = event.payload.bool("isError") ?? false
+            let status: SessionLiveActivity.Status = event.type == "tool_end"
+                ? (isError ? .failed : .completed)
+                : .running
+            activity = SessionLiveActivity(id: id, kind: .tool, title: name, detail: detail, status: status)
+        case "queue_update":
+            activity = SessionLiveActivity(
+                id: event.cursor,
+                kind: .queue,
+                title: "Очередь сообщений",
+                detail: event.payload.compactDescription,
+                status: .completed
+            )
+        case "retry_start":
+            activity = SessionLiveActivity(
+                id: "retry", kind: .retry, title: "Повтор запроса",
+                detail: event.payload.compactDescription, status: .running
+            )
+        case "retry_end":
+            activity = SessionLiveActivity(
+                id: "retry", kind: .retry, title: "Повтор завершён",
+                detail: event.payload.compactDescription, status: .completed
+            )
+        case "compaction_start":
+            activity = SessionLiveActivity(
+                id: "compaction", kind: .compaction, title: "Сжатие контекста",
+                detail: "Pi обновляет рабочий контекст сессии.", status: .running
+            )
+        case "compaction_end":
+            activity = SessionLiveActivity(
+                id: "compaction", kind: .compaction, title: "Контекст обновлён",
+                detail: event.payload.compactDescription, status: .completed
+            )
+        case "pi_unknown":
+            activity = SessionLiveActivity(
+                id: event.cursor, kind: .unknown, title: "Системное событие Pi",
+                detail: event.payload.string("piType") ?? "Неизвестный тип", status: .completed
+            )
+        default:
+            activity = nil
+        }
+        guard let activity else { return }
+        if let index = liveActivities.firstIndex(where: { $0.id == activity.id }) {
+            liveActivities[index] = activity
+        } else {
+            liveActivities.append(activity)
+        }
+        if liveActivities.count > 20 { liveActivities.removeFirst(liveActivities.count - 20) }
+    }
+
+    private static func items(from entry: NewChatCore.JSONValue) -> [SessionTimelineItem] {
+        guard case let .object(object) = entry else { return [] }
+        let entryID = object.string("id")
+        let messageObject = object.object("message") ?? object
+        guard let role = messageObject.string("role") else { return [] }
+        guard role != "system" else { return [] }
+        let content = messageObject["content"]
+        let baseID = entryID ?? UUID().uuidString
+
+        switch content {
+        case let .string(text):
+            guard !text.isEmpty else { return [] }
+            return [messageItem(id: baseID, entryID: entryID, role: role, text: text)]
+        case let .array(parts):
+            var items: [SessionTimelineItem] = []
+            var textParts: [String] = []
+            for (index, part) in parts.enumerated() {
+                guard case let .object(value) = part else { continue }
+                let type = value.string("type") ?? ""
+                if type == "text", let text = value.string("text") {
+                    textParts.append(text)
+                } else if type == "toolCall" || type == "tool_use" {
+                    let name = value.string("name") ?? "Инструмент"
+                    items.append(SessionTimelineItem(
+                        id: "\(baseID)-tool-\(index)", entryID: entryID, kind: .tool, role: role,
+                        title: name,
+                        text: value.object("arguments").map { NewChatCore.JSONValue.object($0).compactDescription }
+                            ?? value["input"]?.compactDescription
+                            ?? "",
+                        isError: false
+                    ))
+                } else if type == "toolResult" || type == "tool_result" {
+                    items.append(SessionTimelineItem(
+                        id: "\(baseID)-result-\(index)", entryID: entryID, kind: .result, role: role,
+                        title: "Результат", text: value["content"]?.compactDescription ?? value["result"]?.compactDescription ?? "",
+                        isError: value.bool("isError") ?? false
+                    ))
+                }
+            }
+            if !textParts.isEmpty {
+                let text = textParts.joined()
+                if role == "toolResult" {
+                    items.insert(SessionTimelineItem(
+                        id: baseID,
+                        entryID: entryID,
+                        kind: .result,
+                        role: role,
+                        title: messageObject.string("toolName") ?? "Результат",
+                        text: text,
+                        isError: messageObject.bool("isError") ?? false
+                    ), at: 0)
+                } else {
+                    items.insert(messageItem(id: baseID, entryID: entryID, role: role, text: text), at: 0)
+                }
+            }
+            return items
+        default:
+            return []
+        }
+    }
+
+    private static func messageItem(id: String, entryID: String?, role: String, text: String) -> SessionTimelineItem {
+        SessionTimelineItem(
+            id: id, entryID: entryID, kind: .message, role: role,
+            title: roleTitle(role), text: text, isError: false
+        )
+    }
+
+    private static func roleTitle(_ role: String) -> String {
+        switch role {
+        case "user": "Вы"
+        case "assistant": "Помощник"
+        case "toolResult": "Инструмент"
+        default: role
+        }
+    }
+}
+
+private extension Dictionary where Key == String, Value == NewChatCore.JSONValue {
+    func string(_ key: String) -> String? {
+        guard case let .string(value)? = self[key] else { return nil }
+        return value
+    }
+
+    func object(_ key: String) -> [String: NewChatCore.JSONValue]? {
+        guard case let .object(value)? = self[key] else { return nil }
+        return value
+    }
+
+    func bool(_ key: String) -> Bool? {
+        guard case let .bool(value)? = self[key] else { return nil }
+        return value
+    }
+
+    var compactDescription: String {
+        NewChatCore.JSONValue.object(self).compactDescription
+    }
+}
+
+private extension NewChatCore.JSONValue {
+    /// Короткое описание для строки активности. Глубина ограничена: аргументы
+    /// инструментов бывают вложенными, а показывать всё равно нечего.
+    var compactDescription: String { describe(depth: 0) }
+
+    func describe(depth: Int) -> String {
+        guard depth < 8 else { return "…" }
+        switch self {
+        case let .string(value): return value
+        case let .number(value): return String(value)
+        case let .bool(value): return value ? "true" : "false"
+        case let .object(value):
+            return value
+                .map { "\($0.key): \($0.value.describe(depth: depth + 1))" }
+                .sorted()
+                .joined(separator: "\n")
+        case let .array(value):
+            return value.map { $0.describe(depth: depth + 1) }.joined(separator: "\n")
+        case .null: return ""
+        }
+    }
+}
