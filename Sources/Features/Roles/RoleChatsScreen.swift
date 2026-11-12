@@ -442,7 +442,9 @@ struct RoleChatsScreen: View {
         }
         .scrollIndicators(.hidden)
         .scrollPosition($storiesScroll)
-        .scrollTargetBehavior(ChatStoriesSnap(rowHeight: storiesActive ? ChatStoriesLayout.rowHeight : 0))
+        .scrollTargetBehavior(ChatStoriesSnap(rowHeight: storiesActive ? ChatStoriesLayout.rowHeight : 0,
+                                              limit: storiesActive && storiesFiller > 0
+                                                  ? ChatStoriesLayout.rowHeight + ChatStoriesLayout.searchHeight : nil))
         .onScrollGeometryChange(for: ChatStoriesGeometry.self) { geo in
             ChatStoriesGeometry(offset: geo.contentOffset.y + geo.contentInsets.top,
                                 topInset: geo.contentInsets.top,

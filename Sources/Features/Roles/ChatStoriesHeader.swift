@@ -109,10 +109,17 @@ struct ChatStoriesSnap: ScrollTargetBehavior {
     /// Высота поля поиска: оно тоже доводится — либо видно целиком, либо
     /// сжато в ноль (как в Telegram, владелец 12.11.2026).
     var searchHeight: CGFloat = ChatStoriesLayout.searchHeight
+    /// Короткий список (добран пустым местом): дальше схлопнутого поиска он не
+    /// уезжает — строки не прячутся под полоску проектов, после прокрутки
+    /// список возвращается к ней (владелец 12.11.2026: «не должен заезжать за
+    /// эту панельку»). `nil` — список длинный, прокручивается как обычно.
+    var limit: CGFloat? = nil
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
         let y = target.rect.minY
-        if rowHeight > 0, y > 0, y < rowHeight {
+        if let limit, y > limit {
+            target.rect.origin.y = limit
+        } else if rowHeight > 0, y > 0, y < rowHeight {
             target.rect.origin.y = y < rowHeight / 2 ? 0 : rowHeight
         } else if y > rowHeight, y < rowHeight + searchHeight {
             target.rect.origin.y = y < rowHeight + searchHeight / 2 ? rowHeight : rowHeight + searchHeight
@@ -510,12 +517,14 @@ struct ChatsFolderBar: View {
         } label: {
             Text(title)
                 .font(TFTypeFace.saved(for: .app, group: group.rawValue).font(size: group.size, weight: .semibold))
-                .foregroundStyle(isOn ? Color.tfText : Color.tfSub)
+                // Выбранный пункт красный, как вкладка нижней панели
+                // (владелец 12.11.2026: «где линза — чтобы тоже красным рисовала»).
+                .foregroundStyle(isOn ? Color.tfRed : Color.tfSub)
                 .lineLimit(1)
                 .padding(.horizontal, TFSpacing.md)
                 .frame(minHeight: 34)
                 .background {
-                    if isOn { FolderLens().matchedGeometryEffect(id: "lens", in: lens) }
+                    if isOn { FolderSelection().matchedGeometryEffect(id: "lens", in: lens) }
                 }
         }
         .buttonStyle(.plain)
@@ -591,12 +600,22 @@ private struct FolderLens: View {
     }
 }
 
+/// Подложка выбранного проекта — как у выбранной вкладки нижней панели:
+/// тёмная капсула внутри стекла, а не своё светлое стекло (владелец
+/// 12.11.2026: «точно такой же компонент, как нижняя панель»).
+private struct FolderSelection: View {
+    var body: some View {
+        Capsule().fill(Color.tfFieldDark)
+    }
+}
+
 private extension View {
-    /// Полоска целиком — стекло, как у поля ввода; раньше iOS 26 — заливка полей.
+    /// Полоска целиком — то же стекло, что у нижней панели вкладок: отзывается
+    /// на касание; раньше iOS 26 — заливка полей.
     @ViewBuilder
     func folderBarSurface() -> some View {
         if #available(iOS 26.0, *) {
-            glassEffect(.regular, in: Capsule())
+            glassEffect(.regular.interactive(), in: Capsule())
         } else {
             background(Color(uiColor: .tertiarySystemFill), in: Capsule()).clipShape(Capsule())
         }
