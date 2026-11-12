@@ -6,14 +6,28 @@ import Observation
 /// поэтому внутри раздела её нет (владелец 08.11.2026: «панелька… находятся
 /// только на главных экранах; а у меня она до сих пор висит на оркестраторе,
 /// поэтому и свайп не работает»).
+///
+/// Держим **множество экранов**, а не один флаг (владелец 12.11.2026:
+/// панель вкладок налезала на панель ввода в чате). Флаг ломался, как только
+/// экраны перекрывались: уход одного снимал скрытие, пока другой ещё открыт.
 @Observable
 final class ChatSectionState {
     static let shared = ChatSectionState()
 
     private(set) var isNested = false
+    private var holders: Set<String> = []
 
-    func setNested(_ value: Bool) {
-        guard isNested != value else { return }
-        isNested = value
+    /// Экран переписки (или сессии) открыт. `key` — устойчивый ключ экрана:
+    /// у каждой комнаты свой, поэтому вложенная ветка от сообщения не снимает
+    /// скрытие панели у родительской комнаты.
+    func hold(_ key: String) {
+        holders.insert(key)
+        if !isNested { isNested = true }
+    }
+
+    /// Экран закрылся. Панель возвращается, только когда закрылись все.
+    func release(_ key: String) {
+        holders.remove(key)
+        isNested = !holders.isEmpty
     }
 }

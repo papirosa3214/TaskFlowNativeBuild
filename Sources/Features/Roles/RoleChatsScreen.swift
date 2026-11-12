@@ -40,6 +40,8 @@ struct RoleChatsScreen: View {
     @State private var selectedScopeRaw = ChatHomeScopeKey
     /// Раскладка корня раздела: список всех комнат, а не сразу чья-то роль.
     private static let ChatHomeScopeKey = "all"
+    /// Ключ держателя скрытия нижней панели для этого экрана.
+    private static let tabBarHoldKey = "chats.section"
     private var selectedScope: RoleSessionScope { RoleSessionScope(stored: selectedScopeRaw) }
     @AppStorage("chats.showClosed") private var showsClosed = false
     @State private var listRequestVersion = 0
@@ -267,9 +269,13 @@ struct RoleChatsScreen: View {
             // Внутри раздела нижней панели нет — только на главных экранах
             // (владелец 08.11.2026).
             .onChange(of: selectedScopeRaw, initial: true) { _, raw in
-                ChatSectionState.shared.setNested(raw != Self.ChatHomeScopeKey)
+                if raw == Self.ChatHomeScopeKey {
+                    ChatSectionState.shared.release(Self.tabBarHoldKey)
+                } else {
+                    ChatSectionState.shared.hold(Self.tabBarHoldKey)
+                }
             }
-            .onDisappear { ChatSectionState.shared.setNested(false) }
+            .onDisappear { ChatSectionState.shared.release(Self.tabBarHoldKey) }
             // Возврат из комнаты: бейдж непрочитанных считается на сервере от
             // отметки прочтения, а отпечаток списка от неё не зависит — с 304
             // локальная база вернула бы старый счётчик (владелец 08.11.2026:

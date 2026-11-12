@@ -132,17 +132,19 @@ struct OwnerSessionScreen: View {
         }
         // Внутри сессии нижней панели вкладок нет — как в комнате чата
         // (владелец 08.11.2026: панель только на главных экранах).
-        .onAppear { ChatSectionState.shared.setNested(true) }
+        .onAppear { ChatSectionState.shared.hold(Self.tabBarHoldKey) }
         .onChange(of: voiceSession?.presentation.isActive ?? false) { _, active in
             if !active { Task { await model.refresh() } }
         }
         .onDisappear {
             model.disconnect()
-            ChatSectionState.shared.setNested(false)
+            ChatSectionState.shared.release(Self.tabBarHoldKey)
         }
     }
 
     private static let liveID = "owner-session-live"
+    /// Ключ держателя скрытия нижней панели для сессии владельца.
+    private static let tabBarHoldKey = "owner.session"
 
     private var headerTitle: String {
         if model.activeSessionID == nil { return "Новый чат" }
