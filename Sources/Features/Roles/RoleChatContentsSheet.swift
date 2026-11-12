@@ -3,16 +3,34 @@ import SwiftUI
 /// Содержание чата (владелец 14.10.2026, по образцу): список сообщений по
 /// первой строке, тап — лента прокручивается к этому сообщению.
 struct RoleChatContentsSheet: View {
-    let messages: [RoleChatMessage]
-    let currentUserID: String?
+    /// Строка содержания: сообщение комнаты или запись сессии владельца.
+    struct Entry: Identifiable {
+        let id: String
+        let author: String
+        let text: String
+    }
+
+    let entries: [Entry]
     let onSelect: (String) -> Void
+
+    init(messages: [RoleChatMessage], currentUserID: String?, onSelect: @escaping (String) -> Void) {
+        self.entries = messages.filter { !$0.isSessionMarker }.map {
+            Entry(id: $0.id, author: $0.fromUserID == currentUserID ? "Вы" : ($0.fromUserName ?? "Участник"), text: $0.text)
+        }
+        self.onSelect = onSelect
+    }
+
+    init(entries: [Entry], onSelect: @escaping (String) -> Void) {
+        self.entries = entries
+        self.onSelect = onSelect
+    }
 
     var body: some View {
         NavigationStack {
-            List(messages.filter { !$0.isSessionMarker && !Self.preview($0.text).isEmpty }) { message in
+            List(entries.filter { !Self.preview($0.text).isEmpty }) { message in
                 Button { onSelect(message.id) } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(message.fromUserID == currentUserID ? "Вы" : (message.fromUserName ?? "Участник"))
+                        Text(message.author)
                             .tfText(.caption)
                             .foregroundStyle(Color.tfSub)
                         Text(Self.preview(message.text))
