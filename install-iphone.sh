@@ -72,7 +72,10 @@ fi
 printf 'Источник кода: зеркало github (%s). Приложение ставится из этого дерева.\n' "$(git log -1 --format=%h github/main)" 
 
 шаг "Пересобираю проект из project.yml"
-xcodegen generate
+# --use-cache: проект перегенерируется, только если project.yml изменился.
+# Иначе Xcode каждый раз заново переоценивал проект, и сборка грела Мак
+# (владелец 12.11.2026: «с нуля очень сильно грузятся, Мак кипяток»).
+xcodegen generate --use-cache
 
 шаг "Собираю и подписываю ($CONFIGURATION)"
 # `-allowProvisioningUpdates` — чтобы xcodebuild мог САМ перевыпустить профиль

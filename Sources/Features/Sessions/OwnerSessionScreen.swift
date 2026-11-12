@@ -42,9 +42,11 @@ struct OwnerSessionScreen: View {
                     }
                     if !model.state.transientAssistantText.isEmpty {
                         OwnerSessionReply(text: model.state.transientAssistantText, isStreaming: true)
-                            .id(Self.liveID)
-                    } else if model.isStreaming {
-                        TFLoading(.inline)
+                    }
+                    if model.isStreaming {
+                        // Кубик хода (видео владельца 12.11.2026): думает,
+                        // инструмент, роли, пишет — поворотом на свою грань.
+                        TFActivityCube(phase: activityPhase)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .id(Self.liveID)
                     }
@@ -73,6 +75,10 @@ struct OwnerSessionScreen: View {
         .safeAreaInset(edge: .bottom) { composer }
         .tfScreenBackground()
         .tfNativeHeader(headerTitle, displayMode: .inline)
+        // Внутри сессии нижней панели вкладок нет (владелец 08.11.2026,
+        // 12.11.2026): модификатор на самом экране — на `NavigationStack`
+        // панель оставалась и налезала на панель ввода.
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             if let id = model.activeSessionID {
                 if let voiceSession {
@@ -133,6 +139,10 @@ struct OwnerSessionScreen: View {
         // Внутри сессии нижней панели вкладок нет — как в комнате чата
         // (владелец 08.11.2026: панель только на главных экранах).
         .onAppear { ChatSectionState.shared.hold(Self.tabBarHoldKey) }
+        // Ответ закончен — перечитываем снимок: в нём ответ уже с разметкой.
+        .onChange(of: model.isStreaming) { _, streaming in
+            if !streaming { Task { await model.refresh() } }
+        }
         .onChange(of: voiceSession?.presentation.isActive ?? false) { _, active in
             if !active { Task { await model.refresh() } }
         }
@@ -145,6 +155,14 @@ struct OwnerSessionScreen: View {
     private static let liveID = "owner-session-live"
     /// Ключ держателя скрытия нижней панели для сессии владельца.
     private static let tabBarHoldKey = "owner.session"
+
+    /// Состояние хода для кубика — из того, что уже приходит событиями сессии.
+    private var activityPhase: TFActivityPhase {
+        if model.childSessions.contains(where: { model.state.childActivity[$0.id] == .running }) { return .roles }
+        if model.liveActivities.contains(where: { $0.kind == .tool && $0.status == .running }) { return .tool }
+        if !model.state.transientAssistantText.isEmpty { return .writing }
+        return .thinking
+    }
 
     private var headerTitle: String {
         if model.activeSessionID == nil { return "Новый чат" }
@@ -245,9 +263,7 @@ struct OwnerSessionScreen: View {
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {
-        let target = model.state.transientAssistantText.isEmpty && !model.isStreaming
-            ? model.timeline.last?.id
-            : Self.liveID
+        let target = model.isStreaming ? Self.liveID : model.timeline.last?.id
         guard let target else { return }
         withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
     }
@@ -274,7 +290,7 @@ private struct OwnerSessionItemView: View {
                     )
             }
         case .message where item.role == "assistant":
-            OwnerSessionReply(text: item.text, isStreaming: false)
+            OwnerSessionReply(text: item.text, isStreaming: false, blocks: item.blocks)
         default:
             // Вызовы и результаты инструментов — свёрнутой строкой с названием,
             // сам вывод инструмента в ленту не льётся.
@@ -291,9 +307,13 @@ private struct OwnerSessionItemView: View {
 private struct OwnerSessionReply: View {
     let text: String
     let isStreaming: Bool
+    var blocks: [ChatServerBlock]? = nil
 
     var body: some View {
-        if let json = Self.envelopeJSON(text) {
+        if let blocks, !blocks.isEmpty {
+            // Разметка от сервера — та же, что в чате (владелец 12.11.2026).
+            RoleReplyMarkdown(text: text, serverBlocks: blocks)
+        } else if let json = Self.envelopeJSON(text) {
             ChatStructuredOutputView(json: json, isStreaming: isStreaming)
         } else {
             // Блоки Markdown готовит сервер чата; у сессий их пока нет —

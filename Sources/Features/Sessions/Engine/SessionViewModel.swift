@@ -12,6 +12,8 @@ struct SessionTimelineItem: Identifiable, Equatable {
     let title: String
     let text: String
     let isError: Bool
+    /// Разметка ответа от сервера (text_blocks), как у сообщений чата.
+    var blocks: [ChatServerBlock]? = nil
 }
 
 struct SessionLiveActivity: Identifiable, Equatable {
@@ -217,8 +219,21 @@ final class SessionViewModel {
         return sessions.filter { $0.parentSession == sessionFile }
     }
 
+    /// Записи снимка разбираются один раз на снимок, а не на каждую
+    /// перерисовку: клиент тонкий, разметку готовит сервер (владелец 12.11.2026).
+    @ObservationIgnored private var persistedCache: (key: String, items: [SessionTimelineItem]) = ("", [])
+
+    private var persistedItems: [SessionTimelineItem] {
+        let entries = state.snapshot?.entries ?? []
+        let key = "\(state.snapshot?.id ?? "")#\(entries.count)#\(state.snapshot?.leafId ?? "")"
+        if persistedCache.key == key { return persistedCache.items }
+        let items = entries.flatMap(Self.items(from:))
+        persistedCache = (key, items)
+        return items
+    }
+
     var timeline: [SessionTimelineItem] {
-        let persisted = (state.snapshot?.entries ?? []).flatMap(Self.items(from:))
+        let persisted = persistedItems
         let live = state.messages.enumerated().map { index, message in
             SessionTimelineItem(
                 id: "live-\(index)-\(message.role)-\(message.text.hashValue)",
@@ -450,6 +465,7 @@ final class SessionViewModel {
         let seen = preservingCursor ? state.seenCursors : []
         let childActivity = state.childActivity
         let delivery = state.commandDelivery
+        persistedCache = ("", [])
         state = SessionState(snapshot: snapshot)
         state.lastCursor = cursor
         state.seenCursors = seen
@@ -527,7 +543,9 @@ final class SessionViewModel {
         if object.string("type") == "custom_message", object.string("customType") == "taskflow.voice",
            let details = object.object("details"), let text = details.string("text"), !text.isEmpty {
             let role = details.string("role") == "assistant" ? "assistant" : "user"
-            return [messageItem(id: entryID ?? UUID().uuidString, entryID: entryID, role: role, text: text)]
+            var item = messageItem(id: entryID ?? UUID().uuidString, entryID: entryID, role: role, text: text)
+            item.blocks = serverBlocks(object["text_blocks"])
+            return [item]
         }
         let messageObject = object.object("message") ?? object
         guard let role = messageObject.string("role") else { return [] }
@@ -578,13 +596,21 @@ final class SessionViewModel {
                         isError: messageObject.bool("isError") ?? false
                     ), at: 0)
                 } else {
-                    items.insert(messageItem(id: baseID, entryID: entryID, role: role, text: text), at: 0)
+                    var item = messageItem(id: baseID, entryID: entryID, role: role, text: text)
+                    item.blocks = serverBlocks(object["text_blocks"])
+                    items.insert(item, at: 0)
                 }
             }
             return items
         default:
             return []
         }
+    }
+
+    /// text_blocks снимка → блоки чата (тот же разбор, что у сообщений).
+    private static func serverBlocks(_ value: NewChatCore.JSONValue?) -> [ChatServerBlock]? {
+        guard let value, case .array = value else { return nil }
+        return ChatServerBlock.list(fromFoundation: value.foundationValue)
     }
 
     private static func messageItem(id: String, entryID: String?, role: String, text: String) -> SessionTimelineItem {
@@ -644,6 +670,20 @@ private extension NewChatCore.JSONValue {
         case let .array(value):
             return value.map { $0.describe(depth: depth + 1) }.joined(separator: "\n")
         case .null: return ""
+        }
+    }
+}
+
+extension NewChatCore.JSONValue {
+    /// Значение для JSONSerialization.
+    var foundationValue: Any {
+        switch self {
+        case .string(let value): value
+        case .number(let value): value
+        case .bool(let value): value
+        case .null: NSNull()
+        case .array(let values): values.map(\.foundationValue)
+        case .object(let values): values.mapValues(\.foundationValue)
         }
     }
 }
