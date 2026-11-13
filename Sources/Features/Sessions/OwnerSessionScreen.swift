@@ -471,7 +471,7 @@ private struct SessionQuickReplyRow: View {
             ForEach(replies, id: \.self) { reply in
                 Button { onSend(reply) } label: {
                     Text(reply)
-                        .font(.body)
+                        .tfText(.body)
                         .foregroundStyle(Color.tfText)
                         .padding(.horizontal, TFSpacing.md)
                         .padding(.vertical, TFSpacing.sm)
