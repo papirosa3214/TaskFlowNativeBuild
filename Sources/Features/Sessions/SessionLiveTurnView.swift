@@ -214,7 +214,7 @@ private struct SessionLiveItemsContent: View {
                 // (владелец 11.11.2026, вместо пейсера по буквам).
                 let settled = isStreaming && item == items.last ? RoleLiveBlocks.settled(rawText) : rawText
                 // Служебный конверт в конце ответа не показываем (владелец 13.11.2026).
-                let text = SessionFeed.strippingEnvelope(settled)
+                let text = SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(settled)).clean
                 // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
                 // рефакторинг 07.11 выкинул `display`, и кнопка переключала
                 // только флаг). Готовые куски — переводом, остальное — как есть.

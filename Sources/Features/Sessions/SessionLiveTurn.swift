@@ -282,6 +282,39 @@ enum SessionFeed {
         return String(text[..<cut]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Быстрые ответы: модель заканчивает ответ строкой
+    /// `БЫСТРО: вариант | вариант` — у ролей её разбирает сервер, у сессий
+    /// разбираем здесь (владелец 13.11.2026: «быстрые ответы сломались, в
+    /// отличие от ролей»). Тот же разбор, что `extractQuickReplies` сервера.
+    static func quickReplies(in text: String) -> (clean: String, replies: [String]) {
+        var lines = text.components(separatedBy: "\n")
+        guard let last = lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) else { return (text, []) }
+        let line = lines[last]
+        guard let marker = line.range(of: "БЫСТРО:", options: .caseInsensitive),
+              marker.lowerBound == line.startIndex || line[line.index(before: marker.lowerBound)].isWhitespace else { return (text, []) }
+        let replies = line[marker.upperBound...].split(separator: "|")
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard !replies.isEmpty else { return (text, []) }
+        let prefix = String(line[..<marker.lowerBound]).trimmingCharacters(in: .whitespaces)
+        lines[last] = prefix
+        let clean = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return (clean, Array(replies.prefix(3)))
+    }
+
+    /// Варианты из конверта (`output[].text`), если строка `БЫСТРО:` там.
+    static func envelopeQuickReplies(in text: String) -> [String] {
+        guard let json = envelope(in: text), let data = json.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let output = object["output"] as? [[String: Any]] else { return [] }
+        for block in output.reversed() {
+            if let t = block["text"] as? String {
+                let found = quickReplies(in: t).replies
+                if !found.isEmpty { return found }
+            }
+        }
+        return []
+    }
+
     static func stamp(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
     }

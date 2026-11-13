@@ -83,6 +83,14 @@ struct OwnerSessionScreen: View {
                             .foregroundStyle(Color.tfDim)
                             .padding(.top, TFSpacing.xl)
                     }
+                    if !quickReplies.isEmpty {
+                        // Быстрые ответы под последним ответом — как у ролей
+                        // (владелец 13.11.2026). Нажатие отправляет вариант.
+                        SessionQuickReplyRow(replies: quickReplies) { reply in
+                            model.composerText = reply
+                            Task { await model.send() }
+                        }
+                    }
                     // Метка самого низа ленты (владелец 13.11.2026: кружок «вниз»
                     // не прятался у дна). Видна — лента у низа; к ней же едет
                     // кнопка «вниз». Расчёт по геометрии с отступом поля ввода
@@ -234,6 +242,20 @@ struct OwnerSessionScreen: View {
             model.disconnect()
             ChatSectionState.shared.release(Self.tabBarHoldKey)
         }
+    }
+
+    /// Варианты быстрого ответа к последнему ответу Помощника; после
+    /// сообщения владельца — нет.
+    private var quickReplies: [String] {
+        guard !model.isStreaming, model.pendingOutgoing == nil else { return [] }
+        var lastText: String?
+        if case .text(let text)? = model.liveTurn.items.last { lastText = text }
+        if lastText == nil, let row = model.displayRows.last {
+            if case .reply(_, let text, _) = row { lastText = text } else { return [] }
+        }
+        guard let text = lastText else { return [] }
+        let inline = SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).replies
+        return inline.isEmpty ? SessionFeed.envelopeQuickReplies(in: text) : inline
     }
 
     private static let liveID = "owner-session-live"
@@ -429,7 +451,7 @@ private struct OwnerSessionReply: View {
             // «как оно вначале пишется, и всё, не приходил этот итоговый ответ»).
             // Разметку сервера (`blocks`) здесь не берём: иначе по концу хода
             // текст перерисовывался в другой вид.
-            RoleReplyMarkdown(text: text)
+            RoleReplyMarkdown(text: SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).clean)
         }
     }
 
@@ -438,5 +460,30 @@ private struct OwnerSessionReply: View {
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
+    }
+}
+
+/// Кнопки быстрых ответов сессии — тот же вид, что у ролей
+/// (`RoleChatRoomScreen.quickReplyRow`): перенос строк, капсулы.
+private struct SessionQuickReplyRow: View {
+    let replies: [String]
+    let onSend: (String) -> Void
+
+    var body: some View {
+        FlowLayout(spacing: TFSpacing.sm) {
+            ForEach(replies, id: \.self) { reply in
+                Button { onSend(reply) } label: {
+                    Text(reply)
+                        .font(.body)
+                        .foregroundStyle(Color.tfText)
+                        .padding(.horizontal, TFSpacing.md)
+                        .padding(.vertical, TFSpacing.sm)
+                        .background(Color.tfRed.opacity(0.18), in: Capsule())
+                        .overlay { Capsule().strokeBorder(Color.tfButtonEdge, lineWidth: TFBorder.width) }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, TFSpacing.xs)
     }
 }
