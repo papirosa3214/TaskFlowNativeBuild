@@ -75,6 +75,19 @@ struct OwnerSessionScreen: View {
                     // Было: Кубик хода (видео владельца 12.11.2026): думает,
                     // инструмент, роли, пишет — поворотом на свою грань.
                     // Рядом словечко, как у Claude Code: грань — чем занят Помощник.
+                    if model.isStreaming {
+                        // Вместо кубика — значок хода из видео владельца (13.11.2026)
+                        // и словечко рядом.
+                        HStack(spacing: TFSpacing.sm) {
+                            SessionActivityGlyph(phase: activityPhase)
+                            TimelineView(.periodic(from: .now, by: TFActivityStatus.wordPeriod)) { context in
+                                Text(TFActivityStatus.word(at: context.date, seed: model.liveTurn.startedAt.map { Int($0.timeIntervalSince1970) } ?? 0) + "…")
+                                    .tfText(.meta)
+                                    .foregroundStyle(Color.tfSub)
+                            }
+                        }
+                        .id(Self.liveID)
+                    }
                     if model.displayRows.isEmpty && !model.isStreaming && !model.isLoading {
                         Text("Напишите, что нужно сделать.")
                             .tfText(.action)
