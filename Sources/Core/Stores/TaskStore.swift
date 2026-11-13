@@ -238,7 +238,8 @@ public final class TaskStore {
             }
             upsert(restored)
             await load(silent: true)
-            await loadArchive()
+            // Старый тяжёлый список архива не перечитываем: архив на телефоне —
+            // мини-карточки `ClosedTasksStore` (владелец 13.11.2026).
             return true
         } catch {
             archiveErrorMessage = Self.message(for: error)

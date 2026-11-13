@@ -5,15 +5,14 @@ struct TaskArchiveScreen: View {
     @Environment(TaskStore.self) private var taskStore
     @Environment(ProjectStore.self) private var projectStore
     @State private var pendingProjectDelete: ApiProject?
-    @State private var pendingDelete: ApiTask?
-    @State private var selectedTask: ApiTask?
+    @State private var selectedItem: ClosedTaskItem?
     @State private var busyID: String?
+    /// Архив на телефоне — мини-карточки закрытых задач за месяц, только
+    /// изменения с сервера (владелец 13.11.2026). Полная карточка приходит
+    /// только при восстановлении.
+    @State private var closedStore = ClosedTasksStore.shared
 
-    private var tasks: [ApiTask] {
-        taskStore.archivedTasks.sorted {
-            ($0.archivedAt ?? "") > ($1.archivedAt ?? "")
-        }
-    }
+    private var tasks: [ClosedTaskItem] { closedStore.snapshot.items }
 
     var body: some View {
         // List owns the row surface and native swipe presentation.
@@ -21,14 +20,14 @@ struct TaskArchiveScreen: View {
             Group {
                 historySection
 
-                TFErrorBanner(taskStore.archiveErrorMessage, variant: .inline)
+                TFErrorBanner(closedStore.errorMessage ?? taskStore.archiveErrorMessage, variant: .inline)
 
-                if taskStore.isLoadingArchive && tasks.isEmpty {
+                if closedStore.isLoading && tasks.isEmpty {
                     TFLoading(.block)
-                } else if tasks.isEmpty && taskStore.archiveErrorMessage == nil {
+                } else if tasks.isEmpty && closedStore.errorMessage == nil {
                     TFEmptyState(
                         icon: "archivebox",
-                        text: "Задачи, отправленные в архив, можно восстановить или удалить окончательно."
+                        text: "Закрытые за последний месяц задачи появятся здесь. Их можно вернуть в работу."
                     )
                     .padding(.horizontal, TFSpacing.xs)
                 } else if !tasks.isEmpty {
@@ -38,8 +37,8 @@ struct TaskArchiveScreen: View {
                             .foregroundStyle(Color.tfSub)
                             .padding(.horizontal, TFSpacing.screenHorizontal)
                         Group {
-                            ForEach(tasks.indices, id: \.self) { rowIndex in
-                                archiveRow(tasks[rowIndex])
+                            ForEach(tasks) { item in
+                                archiveRow(item)
                             }
                         }
                     }
@@ -57,60 +56,49 @@ struct TaskArchiveScreen: View {
         .tfNativeHeader("Архив", displayMode: .inline)
         .task { await loadArchive() }
         .refreshable { await loadArchive() }
-        .confirmationDialog(pendingProjectDelete == nil ? "Удалить задачу окончательно?" : "Удалить проект окончательно?", isPresented: Binding(
-            get: { pendingDelete != nil || pendingProjectDelete != nil },
-            set: { if !$0 { pendingDelete = nil; pendingProjectDelete = nil } }
+        .confirmationDialog("Удалить проект окончательно?", isPresented: Binding(
+            get: { pendingProjectDelete != nil },
+            set: { if !$0 { pendingProjectDelete = nil } }
         ), titleVisibility: .visible) {
-            if let task = pendingDelete {
-                Button("Удалить окончательно", role: .destructive) {
-                    permanentlyDelete(task)
-                }
-            }
             if let project = pendingProjectDelete {
                 Button("Удалить проект окончательно", role: .destructive) { purgeProject(project) }
             }
-            Button("Отмена", role: .cancel) { pendingDelete = nil; pendingProjectDelete = nil }
+            Button("Отмена", role: .cancel) { pendingProjectDelete = nil }
         } message: {
-            Text(pendingProjectDelete != nil
-                ? "Проект, его задачи, чаты и память будут удалены без возможности восстановления. Документы сохранятся."
-                : "Карточка и её история будут удалены без возможности восстановления. Если у задачи есть дочерние карточки, сначала удалите их из архива.")
+            Text("Проект, его задачи, чаты и память будут удалены без возможности восстановления. Документы сохранятся.")
         }
-        .tfSheet(item: $selectedTask) { task in
-            // Карточка закрытой задачи — общая с «Историей выполнения»:
-            // формат один, отличается только пометка (выполнена/отменена).
-            ClosedTaskSheet(
-                task: task,
+        .tfSheet(item: $selectedItem) { item in
+            // Мини-карточка: только то, что пришло в архив. Полная задача
+            // грузится, лишь когда её возвращают в работу.
+            ClosedMiniCardSheet(
+                item: item,
                 isBusy: busyID != nil,
-                onRestore: { restore(task) },
-                onDelete: { pendingDelete = task }
+                onRestore: { restore(item); selectedItem = nil },
+                onHide: { closedStore.hide(item.id); selectedItem = nil }
             )
         }
     }
 
-    /// Ряд архивной задачи — каноничный `DirectoryTaskRow` на `HorizontalPan`,
-    /// тот же, что в списках проекта и меток. Свайп вправо — безвозвратное
-    /// удаление, свайп влево — «Вернуть в работу».
-    private func archiveRow(_ task: ApiTask) -> some View {
-        DirectoryTaskRow(
-            index: nil,
-            task: task,
-            isOwner: true,
-            onOpen: { selectedTask = task },
-            onDelete: { pendingDelete = task },
-            swipeAction: .restore,
-            onSwipeAction: { restore(task) },
-            deleteConfirmTitle: "Удалить окончательно?",
-            deleteConfirmMessage: { title in
-                "«\(title)» и её история будут удалены без возможности восстановления."
-            }
-        )
-        .disabled(busyID != nil)
-        .contextMenu {
-            Button("Восстановить", systemImage: "arrow.uturn.backward") { restore(task) }
-            Button("Удалить окончательно", systemImage: "trash", role: .destructive) {
-                pendingDelete = task
-            }
+    /// Ряд закрытой задачи: название, проект и дата, итог одной строкой.
+    /// Свайп влево — вернуть в работу, вправо — убрать с телефона (в
+    /// статистике и на сервере остаётся).
+    private func archiveRow(_ item: ClosedTaskItem) -> some View {
+        Button { selectedItem = item } label: {
+            ClosedMiniCardRow(item: item)
         }
+        .buttonStyle(.plain)
+        .disabled(busyID != nil)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button { restore(item) } label: { Label("Вернуть", systemImage: "arrow.uturn.backward") }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button { closedStore.hide(item.id) } label: { Label("Убрать с телефона", systemImage: "iphone.slash") }
+        }
+        .contextMenu {
+            Button("Вернуть в работу", systemImage: "arrow.uturn.backward") { restore(item) }
+            Button("Убрать с телефона", systemImage: "iphone.slash") { closedStore.hide(item.id) }
+        }
+        .accessibilityIdentifier("archive.closed.\(item.id)")
     }
 
     /// Ссылка на историю выполнения — тем же видом, что ряды остальных
@@ -193,7 +181,7 @@ struct TaskArchiveScreen: View {
     }
 
     private func loadArchive() async {
-        await taskStore.loadArchive()
+        await closedStore.refresh()
         await projectStore.loadArchive()
     }
 
@@ -210,22 +198,92 @@ struct TaskArchiveScreen: View {
         Task { _ = await projectStore.purgeArchived(projectId: project.id); busyID = nil }
     }
 
-    private func restore(_ task: ApiTask) {
+    /// Вернуть в работу: только здесь полная карточка приходит на телефон.
+    private func restore(_ item: ClosedTaskItem) {
         guard busyID == nil else { return }
-        busyID = task.id
+        busyID = item.id
         Task {
-            _ = await taskStore.restore(taskId: task.id)
+            if await taskStore.restore(taskId: item.id) { closedStore.removeRestored(item.id) }
             busyID = nil
         }
     }
+}
 
-    private func permanentlyDelete(_ task: ApiTask) {
-        guard busyID == nil else { return }
-        pendingDelete = nil
-        busyID = task.id
-        Task {
-            _ = await taskStore.permanentlyDelete(taskId: task.id)
-            busyID = nil
+/// Ряд мини-карточки закрытой задачи.
+private struct ClosedMiniCardRow: View {
+    let item: ClosedTaskItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+                .tfText(.row)
+                .foregroundStyle(Color.tfText)
+                .lineLimit(2)
+            Text(ClosedMiniCard.meta(item))
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+                .lineLimit(1)
+            if let outcome = item.outcome {
+                Text(outcome)
+                    .tfText(.meta)
+                    .foregroundStyle(Color.tfSub)
+                    .lineLimit(1)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TFSpacing.screenHorizontal)
+        .padding(.vertical, TFSpacing.sm)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Мини-карточка закрытой задачи шторкой: название, проект, дата, пометка,
+/// итог; «Вернуть в работу» и «Убрать с телефона».
+private struct ClosedMiniCardSheet: View {
+    let item: ClosedTaskItem
+    let isBusy: Bool
+    let onRestore: () -> Void
+    let onHide: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            Text(item.title)
+                .tfText(.title)
+                .foregroundStyle(Color.tfText)
+            Text(ClosedMiniCard.meta(item))
+                .tfText(.meta)
+                .foregroundStyle(Color.tfSub)
+            if let outcome = item.outcome {
+                VStack(alignment: .leading, spacing: TFSpacing.xs) {
+                    Text("Итог")
+                        .tfText(.meta)
+                        .foregroundStyle(Color.tfSub)
+                    Text(outcome)
+                        .tfText(.body)
+                        .foregroundStyle(Color.tfText)
+                        .textSelection(.enabled)
+                }
+            }
+            TFButton("Вернуть в работу", icon: "arrow.uturn.backward", variant: .primary, isEnabled: !isBusy, action: onRestore)
+            TFButton("Убрать с телефона", icon: "iphone.slash", variant: .secondary, action: onHide)
+            Text("В статистике и на сервере задача останется.")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfDim)
+        }
+        .padding(TFSpacing.screenHorizontal)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private enum ClosedMiniCard {
+    /// «Проект · 12 нояб., 14:30 · выполнена».
+    static func meta(_ item: ClosedTaskItem) -> String {
+        var parts: [String] = []
+        if let project = item.projectName, !project.isEmpty { parts.append(project) }
+        if let date = ClosedTasksSnapshot.date(item.closedAt) {
+            parts.append(date.formatted(date: .abbreviated, time: .shortened))
+        }
+        parts.append(item.kind == .completed ? "выполнена" : "в архиве")
+        return parts.joined(separator: " · ")
     }
 }
