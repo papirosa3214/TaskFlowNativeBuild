@@ -470,7 +470,10 @@ final class SessionViewModel {
 
     private func receive(_ event: SessionEventEnvelope) {
         recordActivity(event)
-        if event.sessionId == activeSessionID { liveTurn.apply(type: event.type, payload: event.payload) }
+        // Повтор уже принятого куска (после переподключения сервер может
+        // прислать его снова) в живой ход не пишем — иначе слова двоятся.
+        let isNew = !state.seenCursors.contains(event.cursor)
+        if isNew, event.sessionId == activeSessionID { liveTurn.apply(type: event.type, payload: event.payload) }
         SessionReducer.apply(event, to: &state)
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
             Task { await refreshSnapshot() }
@@ -484,6 +487,14 @@ final class SessionViewModel {
         do {
             if let cursor = state.lastCursor {
                 let payload = try await apiClient.events(sessionID: sessionID, after: cursor)
+                // Догнанные куски — и в живой ход: раньше они шли только в
+                // состояние, и на экране в ответе пропадали слова (владелец
+                // 13.11.2026: «какие-то слова не допечатываются»).
+                if !payload.resetRequired {
+                    for event in payload.events where !state.seenCursors.contains(event.cursor) && event.sessionId == sessionID {
+                        liveTurn.apply(type: event.type, payload: event.payload)
+                    }
+                }
                 SessionReducer.apply(payload, to: &state)
                 if state.needsSnapshotReset { await refreshSnapshot() }
             } else {
