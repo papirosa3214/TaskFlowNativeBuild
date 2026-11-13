@@ -18,12 +18,16 @@ production target, но сохранены как законченные мод�
 | --- | --- | --- |
 | `Keyboard-2026-09-11/` | Своя экранная клавиатура (демо-прототип) | `Sources/Keyboard/` |
 | `task-fields-2026-09-11/` | Пять отдельных полей формы задачи (Assignee, Labels, Priority, Project, DueDate) + `FlowLayout` + вырезанные компоненты из `SubtaskFormFieldView`/`AttachmentsFieldView` | `Sources/Features/Task/Fields/` |
-| `design-system-2026-09-11/` | Старая шапка экрана (`TFScreenHeader` + `TFHeaderAction`) | `Sources/DesignSystem/Components/` |
 | `directory-2026-09-11/` | Старая кнопка «Назад» в Справочнике | `Sources/Features/Directory/Support/` |
 | `planner-2026-09-11/` | Старые компоненты чипов проекта (`PlannerProjectChips`, `UpcomingPlannerProjectChips`) | `Sources/Features/Today/`, `Sources/Features/Upcoming/` |
 | `planner-2026-11-01/` | Мёртвые файлы планировщика: часовая сетка «Сегодня» (`TodayHoursView`, `TodayHoursLayout`), список «Планирования» (`UpcomingListView`), шторка фильтров (`UpcomingFilterSheet`) | `Sources/Features/Planner/` |
 | `task-support-2026-11-01/` | Мёртвый диалог подтверждения задачи (`TaskConfirm`) | `Sources/Features/Tasks/Support/` |
 | `ReasonStrip.swift` (в корне архива) | Мёртвая полоса причин и чип исполнителя (`ReasonStrip`, `AssigneeChip`) | `Sources/Features/Coordination/` |
+| `dead-code-2026-11-11/` | Волна мёртвого кода C.4: копии `Sources`, `Tests`, `Tools` внутри папки | `Sources/`, `Tests/`, `Tools/` |
+| `chats-groups-2026-11-12/` | Экран создания чата (`RoleChatCreateScreen`) | `Sources/Features/Roles/` |
+
+Каталога `design-system-2026-09-11/` никогда не существовало: `TFScreenHeader`
+и `TFHeaderAction` вырезаны коммитом `e4ddd413`, а не перенесены в архив.
 
 ## Дата архивирования: 2026-11-01
 

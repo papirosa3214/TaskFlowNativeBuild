@@ -236,7 +236,7 @@
 
 Живой пример разницы (проверено в симуляторе 25.09.2026, iPhone 17 Pro):
 - Сырой `.sheet(item:)` — [Planner/PlannerScreen.swift:196](../Sources/Features/Planner/PlannerScreen.swift): шторка дня открывается своим `.sheet(item:)`, мимо общего компонента. Обвязка своя: `.presentationDetents([.medium, .large])`, `.presentationDragIndicator(.visible)`, `.presentationContentInteraction(.scrolls)`. Визуально — системная шапка шторки: `X` слева, заголовок дня по центру, «Готово» справа.
-- `.tfBottomSheet(isPresented:title:)` — [ServiceNotifications/NotificationTicketCard.swift:59](../Sources/Features/ServiceNotifications/NotificationTicketCard.swift): общий компонент шторки. Визуально — только тонкий системный грабер сверху, заголовок — обычный жирный текст ПЕРВОЙ строкой контента (не в навбаре), закрытие — кнопками внизу, никакого отдельного `X`/`…`.
+- `.tfBottomSheet(isPresented:title:)` — [Tasks/TaskCardContent.swift:493](../Sources/Features/Tasks/TaskCardContent.swift): общий компонент шторки (пример — «Подготовка»). Визуально — только тонкий системный грабер сверху, заголовок — обычный жирный текст ПЕРВОЙ строкой контента (не в навбаре), закрытие — смахиванием вниз, никакой отдельной кнопки `X`/«Готово» (`TFBottomSheet.swift:43-48`).
 
 Оба открывают «окно снизу», но с разной анатомией шапки/закрытия — это и есть предмет разбора: осознанная разница жанров (карточка-документ vs форма-редактор) или дрейф, который стоит свести к одному компоненту. Сырых `.sheet(` в 9 раз больше, чем через `TFBottomSheetContent`. 35 файлов
 ни разу не заходят в общий компонент шторки: `App/Navigation/RootShellView.swift`,
@@ -250,10 +250,10 @@
 действия». Смотреть предметно по каждому файлу — не решать здесь.
 
 ### Кнопка «Фильтр»
-3 разных SF Symbol под одно понятие:
-- `line.3.horizontal.decrease` — [Planner/PlannerScreen.swift:446](../Sources/Features/Planner/PlannerScreen.swift), [Planner/PlannerSection.swift:313](../Sources/Features/Planner/PlannerSection.swift), [Activity/ActivityScreen.swift:335](../Sources/Features/Activity/ActivityScreen.swift), [Roles/RoleLoadScreen.swift:53](../Sources/Features/Roles/RoleLoadScreen.swift) — лидер, 4 места.
-- `line.3.horizontal.decrease.circle.fill` — [Roles/ProjectTopicsScreen.swift:110](../Sources/Features/Roles/ProjectTopicsScreen.swift).
-- `slider.horizontal.3` — [Settings/SettingsScreen.swift:297](../Sources/Features/Settings/SettingsScreen.swift) — там смысл скорее «настройка», а не фильтр списка; проверить по месту, не дрейф ли это.
+2 разных SF Symbol под близкие понятия (сверено с кодом 14.11.2026):
+- `line.3.horizontal.decrease` — [Roles/RoleLoadScreen.swift:53](../Sources/Features/Roles/RoleLoadScreen.swift) и `TFButton.swift:140` (`TFIconButton(…, label: "Фильтры")`) — 2 места.
+- `line.3.horizontal.decrease.circle.fill` — в коде больше не встречается: вариант ушёл вместе с `ProjectTopicsScreen`.
+- `slider.horizontal.3` — [Settings/SettingsScreen.swift:216](../Sources/Features/Settings/SettingsScreen.swift) (строка «Параметры») и в панели ввода чата (`ChatVoiceComposer.swift`); смысл «настройка», а не фильтр — дрейфом не считается.
 
 (`TFButton.swift:166` — строка `#Preview`, не реальное использование, в счёт не идёт.)
 

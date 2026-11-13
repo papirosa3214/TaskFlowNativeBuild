@@ -15,9 +15,9 @@
 | `project.yml` | описание проекта для xcodegen; `.xcodeproj` генерится и в git не хранится |
 | `Sources/App/` | точка входа, корневая навигация, таббар |
 | `Sources/DesignSystem/` | `Theme` (токены), `Components`, `Navigation` |
-| `Sources/Core/` | `Models`, `Networking`, `Realtime`, `Session`, `Stores`, `Speech`, `Common`, Live Activity, удержание фона |
+| `Sources/Core/` | `Models`, `Networking`, `Realtime`, `Session`, `Store`, `Stores`, `Speech`, `Text`, `Common` + файлы в корне (Live Activity, удержание фона, диагностика, журнал клиента) |
 | `Sources/Chat/` | чат с ролями: `Composer`, `Feed`, `Output`, `Panels`, `Shared`, `Widgets` |
-| `Sources/Features/<Экран>/` | по папке на экран: `Activity`, `Coordination`, `Inbox`, `Knowledge`, `Labels`, `Markdown`, `Overview`, `Planner`, `Projects`, `Roles`, `Routines`, `Secretary`, `ServiceNotifications`, `Settings`, `Tasks` |
+| `Sources/Features/<Экран>/` | по папке на экран: `Activity`, `Coordination`, `Inbox`, `Knowledge`, `Markdown`, `Missions`, `Overview`, `Planner`, `Projects`, `Roles`, `Routines`, `Secretary`, `ServiceNotifications`, `Sessions`, `Settings`, `Tasks` |
 | `Resources/` | Assets.xcassets, Info.plist, entitlements, шрифты |
 | `Widgets/` | виджеты и Live Activity |
 | `Tests/`, `UITests/`, `SnapshotTests/` | тесты |
@@ -28,12 +28,16 @@
 | `docs/` | рабочие документы проекта |
 | `archive/` | то, что выведено из работы, но выбрасывать рано |
 
-Всего около 190 файлов Swift.
+Всего 751 файл Swift по таргетам: `Sources/` — 484, `Tests/` — 184,
+`UITests/` — 51, `VoiceMessageLab/` — 11, `VoiceMessageLabTests/` — 7,
+`Packages/` — 8, `Widgets/` — 3, `SnapshotTests/` — 2, `Broadcast/` — 1.
 
 **Это единственный исходник клиента.** Копии на `.110` нет с 08.09.2026, код
-переносится только через git (`origin` — Gitea `maksim/taskflow-native-ios`).
+переносится только через git: штатный `origin` — GitHub
+`papirosa3214/TaskFlowNativeBuild` (с 05.11.2026 push идёт прямо в `main`, без PR
+и CI), дополнительно есть `gitea` — `maksim/taskflow-native-ios`.
 Любой файловый синк в этот каталог отклоняет хук
-`.claude/hooks/guard-no-remote-sync.sh`.
+`.claude/hooks/guard_no_remote_sync.py` (`.claude/settings.json`, PreToolUse → Bash).
 
 ## Технические решения
 
@@ -53,10 +57,12 @@
 ## Сборка
 
 ```bash
+# Только по отдельному поручению владельца: по умолчанию проверяются
+# логика и статические проверки, симулятор не поднимается.
 cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && \
   xcodebuild -project TaskFlow.xcodeproj -scheme TaskFlow -sdk iphonesimulator \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -derivedDataPath build_sim build
+  -destination 'platform=iOS Simulator,name=iPhone Air,OS=27.0' \
+  -derivedDataPath build_sim -jobs 2 build
 ```
 
 Каталоги `build_*` — результаты сборок, в git не входят и занимают десятки
@@ -73,6 +79,8 @@ cd "$HOME/Проекты/TaskFlowNativeBuild" && xcodegen generate && \
    точными `file:line`; ручной обход уводит в мёртвый код.
 4. **Расходится `spec/` с кодом — верить коду.** Спецификации снимались с веба
    07.09.2026 и с тех пор не пересматривались.
-5. **Правки интерфейса проверять кадром симулятора**, а не на глаз.
+5. **Правки интерфейса проверяются логикой** (целевые unit-тесты,
+   статические проверки, `diff`). Симулятор, скриншоты и UI-тесты — только по
+   отдельному прямому поручению владельца; внешний вид принимает он сам.
 
 Полные правила — `CLAUDE.md` и `AGENTS.md` в корне.
