@@ -53,23 +53,25 @@ CONFIGURATION="${CONFIG:-Release}"
 if [ "$(git branch --show-current)" != "main" ]; then
   git switch main || { echo "Не могу перейти на main: в папке незакоммиченные правки агента. Сборка остановлена."; exit 1; }
 fi
-git pull --ff-only github main || { echo "main на маке разошёлся с GitHub — нужен агент. Сборка остановлена."; exit 1; }
+# Код берётся прямо с GitHub (origin), а не из локального зеркала .git-mirror
+# (владелец 13.11.2026: «чтобы я прям с гитхабовского брал»).
+git pull --ff-only origin main || { echo "main на маке разошёлся с GitHub — нужен агент. Сборка остановлена."; exit 1; }
 # Что именно собирается — одной строкой, чтобы «каждый раз разное поведение»
 # не приходилось угадывать (владелец 10.11.2026). Сборка идёт из РАБОЧЕГО дерева,
 # а не из GitHub: локальные неопубликованные коммиты и правки вне коммита
 # попадают в приложение.
 SHA="$(git rev-parse --short HEAD)"
 git log -1 --format='Версия: %h %s'
-AHEAD="$(git rev-list --count github/main..HEAD 2>/dev/null || echo 0)"
+AHEAD="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)"
 if [ "$AHEAD" != "0" ]; then
-  printf '\033[33m! В дереве %s коммит(ов) сверх зеркала: в GitHub их ещё нет.\033[0m\n' "$AHEAD"
+  printf '\033[33m! В дереве %s коммит(ов) сверх GitHub: там их ещё нет.\033[0m\n' "$AHEAD"
 fi
 DIRTY="$(git status --porcelain -- Sources Resources project.yml 2>/dev/null | wc -l | tr -d ' ')"
 if [ "$DIRTY" != "0" ]; then
   printf '\033[33m! Правок вне коммита в коде: %s. Сборка НЕ равна коммиту %s:\033[0m\n' "$DIRTY" "$SHA"
   git status --porcelain -- Sources Resources project.yml | head -8 | sed 's/^/    /'
 fi
-printf 'Источник кода: зеркало github (%s). Приложение ставится из этого дерева.\n' "$(git log -1 --format=%h github/main)" 
+printf 'Источник кода: GitHub (%s). Приложение ставится из этого дерева.\n' "$(git log -1 --format=%h origin/main)" 
 
 шаг "Пересобираю проект из project.yml"
 # --use-cache: проект перегенерируется, только если project.yml изменился.
