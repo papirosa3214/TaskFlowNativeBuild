@@ -64,20 +64,36 @@ struct SessionActivityGlyph: View {
         }
     }
 
-    /// Капля переливается по пунктиру туда-обратно и тянется на ходу.
+    /// Ряд маленьких точек; толстая капля справа четыре раза выстреливает
+    /// каплю с хвостиком — та бежит влево и у края исчезает, следом стартует
+    /// новая; капля справа худеет, потом остаются только точки (владелец
+    /// 13.11.2026, по превью: «наконец-то… точечки пожирнее, хвостик длиннее»).
     private static func blob(_ c: GraphicsContext, _ a: CGSize, _ t: Double, _ s: GraphicsContext.Shading) {
-        let midY = a.height / 2, span = a.width * 0.4
-        let phase = 2 * .pi * t * 0.6
-        let x = a.width / 2 + span * sin(phase)
-        let stretch = abs(cos(phase))
-        let w = a.width * (0.16 + 0.22 * stretch), h = a.height * (0.2 - 0.05 * stretch)
-        for i in 0..<7 {
-            let dx = a.width * 0.1 + CGFloat(i) * a.width * 0.8 / 6
-            guard abs(dx - x) > w / 2 + 1 else { continue }
-            let r = a.width * 0.035
-            c.fill(Path(ellipseIn: CGRect(x: dx - r, y: midY - r, width: r * 2, height: r * 2)), with: s)
+        let count = 7, shots = 4, travel = 0.5, rest = 0.6
+        let cycle = Double(shots) * travel + rest
+        let local = t.truncatingRemainder(dividingBy: cycle)
+        let midY = a.height / 2, x0 = a.width * 0.06, x1 = a.width * 0.94
+        let small = a.width * 0.042, big = a.width * 0.075
+        func dot(_ ctx: GraphicsContext, _ x: CGFloat, _ r: CGFloat) {
+            ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: midY - r, width: r * 2, height: r * 2)), with: s)
         }
-        c.fill(Path(ellipseIn: CGRect(x: x - w / 2, y: midY - h / 2, width: w, height: h)), with: s)
+        for i in 0..<count { dot(c, x0 + (x1 - x0) * CGFloat(i) / CGFloat(count - 1), small) }
+        let shot = Int(local / travel)
+        let fired = min(shots, shot + (local < Double(shots) * travel ? 1 : 0))
+        let left = max(0, shots - fired)
+        if left > 0 { dot(c, x1, small + (big * 1.3 - small) * CGFloat(left) / CGFloat(shots)) }
+        guard shot < shots else { return }
+        let progress = (local - Double(shot) * travel) / travel
+        let eased = 1 - pow(1 - progress, 2)
+        let x = x1 - (x1 - x0) * CGFloat(eased)
+        let tail = 14
+        for k in stride(from: tail, through: 0, by: -1) {
+            let xs = x + (x1 - x0) * 0.035 * CGFloat(k) * CGFloat(1 - eased * 0.3)
+            guard xs <= x1 else { continue }
+            var layer = c
+            layer.opacity = k == 0 ? 1 : 0.4 * (1 - Double(k) / Double(tail))
+            dot(layer, xs, big * CGFloat(1 - Double(k) / Double(tail + 6)))
+        }
     }
 
     /// Восемь точек по кругу; волна обегает кольцо, точки на ней разбухают.
