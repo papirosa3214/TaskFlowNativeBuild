@@ -246,9 +246,14 @@ struct CompletionHeatmap: View {
     private func loadArchive() async {
         do {
             let response: ReviewHistory = try await APIClient().request(.get, "/stats/review-history")
-            let reviewDates = Dictionary(uniqueKeysWithValues: response.entries.compactMap { entry in
-                DateFormats.sqliteUTC(entry.submitted_at).map { (entry.task_id, $0) }
-            })
+            // Дубль `task_id` в ответе не должен ронять экран: сервер сегодня отдаёт
+            // по одной строке на задачу, но контракт этого не обещает.
+            let reviewDates = Dictionary(
+                response.entries.compactMap { entry in
+                    DateFormats.sqliteUTC(entry.submitted_at).map { (entry.task_id, $0) }
+                },
+                uniquingKeysWith: { _, later in later }
+            )
             days = CompletionCalendar.days(dates: Array(reviewDates.values))
             historyLoaded = true
             archiveError = false

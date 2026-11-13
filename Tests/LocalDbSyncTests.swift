@@ -56,6 +56,20 @@ final class LocalDbSyncTests: XCTestCase {
         XCTAssertEqual(try store.chats(includeClosed: true).count, 2)
     }
 
+    /// «Вернуть из архива» работает пока только на сервере, если локальный
+    /// UPDATE обращается к несуществующему столбцу: ошибка глотается `try?`,
+    /// и архивный чат остаётся скрытым до полного ответа сервера.
+    func testRestoredChatIsVisibleInTheListAgain() throws {
+        try store.upsertChats(Data(#"{"chats":[{"id":"closed","title":"Архивная","kind":"group","created_by":"u","members":[],"closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
+
+        XCTAssertTrue(try store.chats().isEmpty)
+
+        try store.showChat(id: "closed")
+
+        XCTAssertEqual(try store.chats().map(\.id), ["closed"])
+        XCTAssertEqual(try store.chats(includeClosed: true).count, 1)
+    }
+
     // MARK: - Сообщения
 
     func testMessagesAreOrderedBySequence() throws {

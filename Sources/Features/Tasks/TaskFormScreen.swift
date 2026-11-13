@@ -209,7 +209,12 @@ struct TaskFormScreen: View {
                 }
                 let plans = try await api.collaborationPlans(taskId: card.id)
                 if let cards = plans.first(where: { $0.branchCards != nil })?.branchCards {
-                    let numbers = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0.tabNumber) })
+                    // Дубль id не должен ронять карточку (`tasks.id` уникален, но
+                    // полагаться на контракт сервера в UI незачем).
+                    let numbers = Dictionary(
+                        cards.map { ($0.id, $0.tabNumber) },
+                        uniquingKeysWith: { first, _ in first }
+                    )
                     if familyNumbers != numbers { familyNumbers = numbers }
                 }
             } catch { /* Older servers keep the existing bookmark numbering. */ }

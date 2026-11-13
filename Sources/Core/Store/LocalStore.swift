@@ -102,10 +102,12 @@ final class LocalStore: @unchecked Sendable {
     }
 
     /// Вернуть чат из архива в кеше: обратная операция к `hideChat`.
+    /// Столбца `closed_at` в локальной схеме нет — серверные `closed_at` и
+    /// `archived_at` проецируются в один `archived_at` (см. `chat(from:)`).
     func showChat(id: String) throws {
         try queue.write { db in
             try db.execute(
-                sql: "UPDATE chat SET archived_at = NULL, closed_at = NULL WHERE id = ?",
+                sql: "UPDATE chat SET archived_at = NULL WHERE id = ?",
                 arguments: [id]
             )
         }
