@@ -51,6 +51,22 @@ final class SessionViewModel {
     var promptMode: SessionPromptMode = .prompt
     var presentedSheet: SessionSheet?
     var errorMessage: String?
+    /// Отправленное, но ещё не вернувшееся с сервера сообщение владельца.
+    /// Поле ввода очищается сразу, а своё сообщение раньше появлялось только
+    /// эхом сервера — до него оно «пропадало» (владелец 13.11.2026:
+    /// «сообщения вообще не доходят»).
+    var pendingOutgoing: String?
+
+    /// Лента для экрана: история, живые реплики и ещё не подтверждённое
+    /// сообщение владельца в конце, пока сервер не прислал его сам.
+    var displayRows: [SessionFeedRow] {
+        let rows = feedRows + liveFeedRows
+        guard let pending = pendingOutgoing else { return rows }
+        let lastUser = rows.last { if case .user = $0 { return true } else { return false } }
+        if case .user(_, let text)? = lastUser,
+           text.trimmingCharacters(in: .whitespacesAndNewlines) == pending { return rows }
+        return rows + [.user(id: "pending-outgoing", text: pending)]
+    }
 
     private let apiClient: SessionAPIClient
     private let realtime: SessionRealtimeClient
@@ -383,6 +399,7 @@ final class SessionViewModel {
         // Поле очищается сразу: сервер подтверждает команду только после
         // ответа, а держать текст в поле весь ответ — путаница. Ошибка вернёт его.
         composerText = ""
+        pendingOutgoing = text
         do {
             let response = try await apiClient.prompt(
                 sessionID: sessionID,
@@ -397,6 +414,7 @@ final class SessionViewModel {
         } catch {
             state.markCommandFailed(requestId: requestID, message: error.localizedDescription)
             pendingPrompt = nil
+            pendingOutgoing = nil
             if composerText.isEmpty { composerText = text }
             errorMessage = error.localizedDescription
         }

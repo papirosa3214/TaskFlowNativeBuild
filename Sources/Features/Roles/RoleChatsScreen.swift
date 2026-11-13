@@ -217,6 +217,8 @@ struct RoleChatsScreen: View {
             }
             .task(id: query) { await runSearch() }
             .task(id: ownerSessionsBeta) { await reloadOwnerSessions() }
+            // Развилка версий: строки ролей → старая комната `RoleChatRoomScreen`,
+            // «Сессии (бета)» → новый `OwnerSessionScreen` (владелец 13.11.2026).
             .navigationDestination(for: OwnerSessionRoute.self) { route in
                 OwnerSessionScreen(route: route)
             }

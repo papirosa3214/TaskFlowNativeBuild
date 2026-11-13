@@ -9,6 +9,14 @@ struct OwnerSessionRoute: Hashable {
     let token = UUID()
 }
 
+// ═══ НОВАЯ ВЕРСИЯ ЧАТА: «Сессии (бета)» ═══
+// Работа над чатом с Помощником идёт ЗДЕСЬ: этот экран, `SessionLiveTurn.swift`
+// и движок `Sources/Features/Sessions/Engine/`. Старая версия — комната чата
+// роли `Sources/Features/Roles/RoleChatRoomScreen.swift` — правки сессий туда
+// не вносить (владелец 13.11.2026: «разграничить, чтобы агенты не путались»).
+// Общие компоненты (`RoleLiveTurnView.swift`, `RoleReplyMarkdown`,
+// `ChatComposerPill`, `ChatVoiceComposer`) задевают ОБЕ версии.
+
 /// Сессия владельца — обычный разговор с Помощником (владелец 12.11.2026:
 /// «из помощника делать не роль, а просто обычные сессии… без всяких
 /// очередей и процента»). Движок — из прототипа NewChatTF
@@ -50,14 +58,14 @@ struct OwnerSessionScreen: View {
                     // История ходами, как в старой комнате: размышления и
                     // шаги — полосой «Действия», ответ — разметкой сервера
                     // (владелец 12.11.2026: «вернуть живой ход… инструменты, DIF»).
-                    ForEach(model.feedRows + model.liveFeedRows) { row in
+                    ForEach(model.displayRows) { row in
                         OwnerSessionRowView(row: row, expansion: feedExpansion)
                             .id(row.id)
                     }
                     if !model.liveTurn.isEmpty {
                         // Идущий ход — тем же пузырём, что ход роли в комнате:
                         // текст проявляется по словам, шаги встают по мере вызова.
-                        RoleLiveTurnBubble(turn: liveRoleTurn, showsName: false,
+                        SessionLiveTurnBubble(turn: liveRoleTurn, showsName: false,
                                            isComplete: !model.isStreaming, pacesText: true,
                                            expansionRow: Self.liveTurnID, expansion: feedExpansion)
                             .id(Self.liveTurnID)
@@ -69,7 +77,7 @@ struct OwnerSessionScreen: View {
                         TFActivityStatus(phase: activityPhase, seed: model.liveTurn.startedAt.map { Int($0.timeIntervalSince1970) } ?? 0)
                             .id(Self.liveID)
                     }
-                    if model.feedRows.isEmpty && model.liveFeedRows.isEmpty && !model.isStreaming && !model.isLoading {
+                    if model.displayRows.isEmpty && !model.isStreaming && !model.isLoading {
                         Text("Напишите, что нужно сделать.")
                             .tfText(.action)
                             .foregroundStyle(Color.tfDim)
@@ -79,14 +87,16 @@ struct OwnerSessionScreen: View {
                 .padding(.horizontal, TFSpacing.screenHorizontal)
                 .padding(.vertical, TFSpacing.md)
             }
-            .defaultScrollAnchor(.bottom)
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             // Боковой ползунок прокрутки владельцу мешает (12.11.2026).
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
             // Тап в ленту сворачивает клавиатуру — тот же приём, что в комнате
             // (владелец 12.11.2026: «убрать клавиатуру никак не могу»).
             .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissKeyboard() }
-            .onChange(of: model.timeline.count) { _, _ in scrollToEnd(proxy) }
+            .onChange(of: model.timeline.count) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
+            // Своё сообщение — всегда к низу, даже если читал выше.
+            .onChange(of: model.pendingOutgoing) { _, pending in if pending != nil { scrollToEnd(proxy) } }
             // Ход растёт — лента идёт за низом, только если владелец у низа
             // (как лента комнаты: уехал читать выше — не дёргаем).
             .onChange(of: model.liveTurn) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
@@ -106,7 +116,8 @@ struct OwnerSessionScreen: View {
                 ClientLog.shared.add("session=\(model.activeSessionID ?? "new") scroll:nearBottom=\(near)")
             }
             .onChange(of: scrollDownTick) { _, _ in
-                withAnimation(TFMotion.standard) { proxy.scrollTo(model.isStreaming ? Self.liveID : (model.timeline.last?.id ?? Self.liveID), anchor: .bottom) }
+                guard let target = bottomTargetID else { return }
+                withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
             }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
@@ -139,6 +150,7 @@ struct OwnerSessionScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardUp = false
         }
+        .environment(\.roleReplyPlainFallback, true)
         .tfScreenBackground()
         .tfNativeHeader(headerTitle, displayMode: .inline)
         // Внутри сессии нижней панели вкладок нет (владелец 08.11.2026,
@@ -223,7 +235,7 @@ struct OwnerSessionScreen: View {
     private static let liveID = "owner-session-live"
     private static let liveTurnID = "owner-session-live-turn"
 
-    /// Идущий ход сессии в форме хода роли для `RoleLiveTurnBubble`.
+    /// Идущий ход сессии в форме хода роли для `SessionLiveTurnBubble`.
     private var liveRoleTurn: RoleChatLiveTurn {
         RoleChatLiveTurn(chatID: model.activeSessionID ?? "session", userID: "u-secretary", name: "Помощник",
                          startedAt: model.liveTurn.startedAt.map { $0.ISO8601Format() },
@@ -352,9 +364,17 @@ struct OwnerSessionScreen: View {
         )
     }
 
+    /// Нижняя видимая строка ленты. Раньше целью был `timeline.last?.id`, а у
+    /// строк ленты свои id — прокрутка не доезжала до низа, и кружок «вниз»
+    /// не прятался (владелец 13.11.2026).
+    private var bottomTargetID: String? {
+        if model.isStreaming { return Self.liveID }
+        if !model.liveTurn.isEmpty { return Self.liveTurnID }
+        return model.displayRows.last?.id
+    }
+
     private func scrollToEnd(_ proxy: ScrollViewProxy) {
-        let target = model.isStreaming ? Self.liveID : model.timeline.last?.id
-        guard let target else { return }
+        guard let target = bottomTargetID else { return }
         withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
     }
 }
@@ -382,7 +402,7 @@ private struct OwnerSessionRowView: View {
                     )
             }
         case .work(let id, let items):
-            RoleLiveItemsList(items: items, showsActionPreview: true,
+            SessionLiveItemsList(items: items, showsActionPreview: true,
                               expansionRow: id, expansion: expansion)
         case .reply(_, let text, let blocks):
             OwnerSessionReply(text: text, isStreaming: false,

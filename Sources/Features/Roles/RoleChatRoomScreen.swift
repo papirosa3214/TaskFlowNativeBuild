@@ -19,6 +19,11 @@ private struct PendingOutgoing: Identifiable, Equatable {
     var failed = false
 }
 
+// ═══ СТАРАЯ ВЕРСИЯ ЧАТА: комната чата роли ═══
+// Новая версия чата с Помощником — «Сессии (бета)»:
+// `Sources/Features/Sessions/OwnerSessionScreen.swift` + `Sources/Features/Sessions/Engine/`.
+// Правки сессий (живой ход, кружок «вниз», лента) — туда, не сюда
+// (владелец 13.11.2026).
 struct RoleChatRoomScreen: View {
     @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     @Environment(SessionStore.self) private var session

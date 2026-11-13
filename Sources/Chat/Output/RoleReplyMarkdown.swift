@@ -28,6 +28,9 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Жирный читает «Подзаголовок» — без этого счётчика `.equatable()` не
     /// перерисует ответ при смене ступени в настройках.
     @AppStorage(TFTypeScale.revisionKey) private var typeRevision = 0
+    /// Сессии (бета) блоков сервера для живого хода не получают: там вместо
+    /// «Не удалось получить подготовленное содержимое» — строчный Markdown.
+    @Environment(\.roleReplyPlainFallback) private var plainFallback
 
     var body: some View {
         let _ = typeRevision
@@ -38,8 +41,14 @@ struct RoleReplyMarkdown: View, Equatable {
             documentBody(blocks)
         } else if segments.isEmpty {
             if !text.isEmpty {
-                Text("Не удалось получить подготовленное содержимое")
-                    .foregroundStyle(Color.tfSub)
+                if plainFallback {
+                    Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
+                        .foregroundStyle(color)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("Не удалось получить подготовленное содержимое")
+                        .foregroundStyle(Color.tfSub)
+                }
             }
         } else {
             // Таблицы, виджеты и артефакты (владелец 01.10.2026) — своими
@@ -654,4 +663,10 @@ extension RoleReplyMarkdown {
         if !isLast { fade.isAnimating = false }
         return fade
     }
+}
+
+/// Включается только экраном сессии (бета), `OwnerSessionScreen`: у старых
+/// чатов ролей блоки готовит сервер, и поведение там прежнее.
+extension EnvironmentValues {
+    @Entry var roleReplyPlainFallback = false
 }

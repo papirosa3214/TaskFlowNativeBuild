@@ -318,6 +318,7 @@ LIST_ROW_CHEVRON_ALLOWED = {
     "Features/Knowledge/NotesScreen.swift",       # раскрывающая пара шевронов у папки
     "Features/Roles/RoleActionGroup.swift",       # раскрывающая пара
     "Features/Roles/RoleLiveTurnView.swift",      # указатель внутри карточки чата
+    "Features/Sessions/SessionLiveTurnView.swift",  # копия видов хода для сессий (бета)
     "Features/ServiceNotifications/NotificationTicketCard.swift",  # указатель в шапке карточки
     "Features/Tasks/TaskCardContent.swift",       # указатели и раскрывающая пара внутри карточки
     "Features/Tasks/Detail/TaskCodeChangesViews.swift",  # указатель внутри карточки
