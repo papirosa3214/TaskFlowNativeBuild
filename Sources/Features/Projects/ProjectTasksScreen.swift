@@ -163,7 +163,8 @@ struct ProjectTasksScreen: View {
                             // отдельной дверью; владелец 08.11.2026: искать работу
                             // в другом отделе он не должен, хватит подзаголовка.
                             if !workCardTasks.isEmpty {
-                                TFSectionHeader("Карточки работ")
+                                // Название — «Состояние системы» (владелец 13.11.2026).
+                                TFSectionHeader("Состояние системы")
                                     .padding(.horizontal, TFSpacing.md)
                                     .padding(.top, TFSpacing.sm)
                                     .accessibilityIdentifier("tasks.workCards.header")
@@ -362,7 +363,9 @@ struct ProjectTasksScreen: View {
     }
 
     private func refreshRelationshipTasks() async {
-        relationshipTasks = (try? await apiClient.tasks(includeChildren: true)) ?? []
+        // В «Все задачи» — и служебные задачи под поломку: они встают под
+        // подзаголовок «Состояние системы» (владелец 13.11.2026).
+        relationshipTasks = (try? await apiClient.tasks(includeChildren: true, service: showsAllProjects)) ?? []
     }
 
     private var notFoundView: some View {

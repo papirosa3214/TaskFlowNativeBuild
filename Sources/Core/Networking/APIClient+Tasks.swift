@@ -48,8 +48,11 @@ public extension APIClient {
 
     /// `includeChildren` — query `include_children` (spec §5.1).
     func tasks(includeChildren: Bool = false, archived: Bool = false,
-               projection: TaskListProjection = .list) async throws -> [ApiTask] {
+               projection: TaskListProjection = .list, service: Bool = false) async throws -> [ApiTask] {
         var query: [URLQueryItem] = []
+        // Служебные задачи (под поломку из «Состояния системы») сервер отдаёт
+        // только по флагу `service` (владелец 13.11.2026: видеть их в «Все задачи»).
+        if service { query.append(URLQueryItem(name: "service", value: "true")) }
         if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
         if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
         if projection == .list { query.append(URLQueryItem(name: "projection", value: "list")) }
