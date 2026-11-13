@@ -293,8 +293,8 @@ Features 197), `Tests` — 184, `UITests` — 51, `Widgets` — 3. `project.yml`
 - [ ] `wipeUserData()` на выходе и на 401 (перепроверено, объём работ понятен:
   `ResponseCache`, `ClosedTasksStore.reset()`, `ComposioCatalogCache`,
   `RolesCache`, четыре стора в памяти, `VACUUM` в `clearAll`).
-- [~] `UIPasteboard` с `.localOnly` — перепроверено, хелпера в проекте нет,
-  замена точечная (2 реальных секрета + 1 код устройства).
+- [x] `UIPasteboard` с `.localOnly` — `SafePasteboard.copySecret`, коммит
+  `a7bdceb4`.
 - [ ] биометрия: снять тумблер (дешевле) или доделать `evaluatePolicy` — нужно
   слово владельца.
 - [~] `ServiceNotificationsClient` — адрес из `APIClient.baseURL`, таймаут 15 с.
