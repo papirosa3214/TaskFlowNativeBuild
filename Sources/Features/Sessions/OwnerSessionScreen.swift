@@ -36,6 +36,12 @@ struct OwnerSessionScreen: View {
     @State private var workStartedAt: Date?
     /// Лента у низа — иначе у пилюли кружок «вниз», как в комнате чата.
     @State private var isNearBottom = true
+    /// Идёт ли лента за низом. Как у ролей (`ChatFeedScrollPolicy.followsBottom`,
+    /// владелец 30.10.2026): меняет его только рука владельца — рост хода
+    /// «на миг не у низа» привязку не снимает. Раньше рост хода уводил метку
+    /// низа с экрана, и лента переставала идти за ходом (владелец 13.11.2026).
+    @State private var followsBottom = true
+    @State private var userScrolling = false
     @State private var scrollDownTick = 0
     /// Положение ленты: кнопка «вниз» едет к нижнему краю, а не к метке —
     /// в ленивой ленте метки внизу ещё нет, когда владелец далеко от низа,
@@ -117,19 +123,32 @@ struct OwnerSessionScreen: View {
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .scrollPosition($feedPosition)
+            // Привязку к низу двигает только рука: палец отпустил — лента
+            // идёт за низом, если он у низа, иначе отпускает.
+            .onScrollPhaseChange { _, phase in
+                let byUser = phase == .interacting || phase == .decelerating
+                if byUser { userScrolling = true }
+                if phase == .idle, userScrolling {
+                    userScrolling = false
+                    followsBottom = ChatFeedScrollPolicy.followsBottom(current: followsBottom, isNearBottom: isNearBottom, byUser: true)
+                }
+            }
             // Боковой ползунок прокрутки владельцу мешает (12.11.2026).
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
             // Тап в ленту сворачивает клавиатуру — тот же приём, что в комнате
             // (владелец 12.11.2026: «убрать клавиатуру никак не могу»).
             .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissKeyboard() }
-            .onChange(of: model.timeline.count) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
+            .onChange(of: model.timeline.count) { _, _ in if followsBottom { scrollToEnd(proxy) } }
             // Своё сообщение — всегда к низу, даже если читал выше.
-            .onChange(of: model.pendingOutgoing) { _, pending in if pending != nil { scrollToEnd(proxy) } }
+            .onChange(of: model.pendingOutgoing) { _, pending in
+                if pending != nil { followsBottom = true; scrollToEnd(proxy) }
+            }
             // Ход растёт — лента идёт за низом, только если владелец у низа
             // (как лента комнаты: уехал читать выше — не дёргаем).
-            .onChange(of: model.liveTurn) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
+            .onChange(of: model.liveTurn) { _, _ in if followsBottom, !userScrolling { scrollToEnd(proxy, animated: false) } }
             .onChange(of: scrollDownTick) { _, _ in
+                followsBottom = true
                 withAnimation(TFMotion.standard) { feedPosition.scrollTo(edge: .bottom) }
             }
             .onChange(of: scrollTarget) { _, target in
@@ -399,9 +418,13 @@ struct OwnerSessionScreen: View {
     /// не прятался (владелец 13.11.2026).
     private var bottomTargetID: String? { Self.bottomID }
 
-    private func scrollToEnd(_ proxy: ScrollViewProxy) {
-        guard let target = bottomTargetID else { return }
-        withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
+    /// К нижнему краю ленты — без метки: в ленивой ленте её может ещё не быть.
+    private func scrollToEnd(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        if animated {
+            withAnimation(TFMotion.standard) { feedPosition.scrollTo(edge: .bottom) }
+        } else {
+            feedPosition.scrollTo(edge: .bottom)
+        }
     }
 }
 
