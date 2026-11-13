@@ -163,14 +163,20 @@ struct ProjectTasksScreen: View {
                             // отдельной дверью; владелец 08.11.2026: искать работу
                             // в другом отделе он не должен, хватит подзаголовка.
                             if !workCardTasks.isEmpty {
-                                // Название — «Состояние системы» (владелец 13.11.2026).
-                                TFSectionHeader("Состояние системы")
-                                    .padding(.horizontal, TFSpacing.md)
-                                    .padding(.top, TFSpacing.sm)
-                                    .accessibilityIdentifier("tasks.workCards.header")
-                                    .hintAnchor(HintAnchorID.tasksWorkCards)
-                                ForEach(workCardTasks, id: \.id) { task in
-                                    treeRow(task, depth: 0)
+                                // Раздел списка: в простом (plain) списке его
+                                // заголовок залипает при прокрутке (владелец
+                                // 13.11.2026: «как у проектов»).
+                                Section {
+                                    ForEach(workCardTasks, id: \.id) { task in
+                                        treeRow(task, depth: 0)
+                                    }
+                                } header: {
+                                    // Название — «Состояние системы» (владелец 13.11.2026).
+                                    TFSectionHeader("Состояние системы")
+                                        .padding(.horizontal, TFSpacing.md)
+                                        .padding(.top, TFSpacing.sm)
+                                        .accessibilityIdentifier("tasks.workCards.header")
+                                        .hintAnchor(HintAnchorID.tasksWorkCards)
                                 }
                             }
                         }
