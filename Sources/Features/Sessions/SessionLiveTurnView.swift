@@ -221,6 +221,10 @@ private struct SessionLiveItemsContent: View {
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
                                   prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
+                // Карточки из конверта — под текстом, когда конверт дописан.
+                if let extras = SessionFeed.envelopeExtras(in: rawText) {
+                    ChatStructuredOutputView(json: extras, isStreaming: false)
+                }
             case .step(let step) where SessionRoleCall(step) != nil:
                 Button { openStep(step) } label: {
                     SessionRoleCallRow(call: SessionRoleCall(step)!, status: step.status)

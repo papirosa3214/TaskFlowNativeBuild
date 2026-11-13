@@ -451,7 +451,12 @@ private struct OwnerSessionReply: View {
             // «как оно вначале пишется, и всё, не приходил этот итоговый ответ»).
             // Разметку сервера (`blocks`) здесь не берём: иначе по концу хода
             // текст перерисовывался в другой вид.
-            RoleReplyMarkdown(text: SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).clean)
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                RoleReplyMarkdown(text: SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).clean)
+                if let extras = SessionFeed.envelopeExtras(in: text) {
+                    ChatStructuredOutputView(json: extras, isStreaming: false)
+                }
+            }
         }
     }
 

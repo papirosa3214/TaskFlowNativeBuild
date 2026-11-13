@@ -301,6 +301,20 @@ enum SessionFeed {
         return (clean, Array(replies.prefix(3)))
     }
 
+    /// Конверт без текстовых блоков: текст уже показан словами, а карточки
+    /// (решение владельца, таблицы, отчёт, файлы) рисуются под ним
+    /// (владелец 13.11.2026: «показывать блоки»). nil — показывать нечего.
+    static func envelopeExtras(in text: String) -> String? {
+        guard let json = envelope(in: text), let data = json.data(using: .utf8),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        let output = (object["output"] as? [[String: Any]] ?? []).filter { ($0["type"] as? String) != "text" }
+        let artifacts = object["artifacts"] as? [Any] ?? []
+        guard !output.isEmpty || !artifacts.isEmpty else { return nil }
+        object["output"] = output
+        guard let out = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+        return String(data: out, encoding: .utf8)
+    }
+
     /// Варианты из конверта (`output[].text`), если строка `БЫСТРО:` там.
     static func envelopeQuickReplies(in text: String) -> [String] {
         guard let json = envelope(in: text), let data = json.data(using: .utf8),
