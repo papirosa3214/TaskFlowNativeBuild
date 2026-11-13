@@ -38,6 +38,8 @@ final class SessionViewModel {
     private(set) var state = SessionState(snapshot: nil)
     private(set) var sessions: [SessionSummary] = []
     private(set) var liveActivities: [SessionLiveActivity] = []
+    /// Идущий ход в модели хода роли — для живой ленты как в старой комнате.
+    private(set) var liveTurn = SessionLiveTurn()
     private(set) var isLoading = false
     private(set) var models: [RuntimeModel] = []
     private(set) var isLoadingModels = false
@@ -222,6 +224,31 @@ final class SessionViewModel {
     /// Записи снимка разбираются один раз на снимок, а не на каждую
     /// перерисовку: клиент тонкий, разметку готовит сервер (владелец 12.11.2026).
     @ObservationIgnored private var persistedCache: (key: String, items: [SessionTimelineItem]) = ("", [])
+
+    @ObservationIgnored private var feedCache: (key: String, rows: [SessionFeedRow]) = ("", [])
+
+    /// История сессии ходами: реплики, размышления и шаги, ответы.
+    var feedRows: [SessionFeedRow] {
+        let entries = state.snapshot?.entries ?? []
+        let key = "\(state.snapshot?.id ?? "")#\(entries.count)#\(state.snapshot?.leafId ?? "")"
+        if feedCache.key == key { return feedCache.rows }
+        let rows = SessionFeed.rows(entries: entries)
+        feedCache = (key, rows)
+        return rows
+    }
+
+    /// Сообщения после снимка, пришедшие событиями: реплики владельца и —
+    /// пока живого хода нет — готовые ответы.
+    var liveFeedRows: [SessionFeedRow] {
+        state.messages.enumerated().compactMap { index, message in
+            let id = "live-\(index)-\(message.role)"
+            if message.role == "user" { return .user(id: id, text: message.text) }
+            if message.role == "assistant", liveTurn.isEmpty, !message.text.isEmpty {
+                return .reply(id: id, text: message.text, blocks: nil)
+            }
+            return nil
+        }
+    }
 
     private var persistedItems: [SessionTimelineItem] {
         let entries = state.snapshot?.entries ?? []
@@ -418,6 +445,7 @@ final class SessionViewModel {
 
     private func receive(_ event: SessionEventEnvelope) {
         recordActivity(event)
+        if event.sessionId == activeSessionID { liveTurn.apply(type: event.type, payload: event.payload) }
         SessionReducer.apply(event, to: &state)
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
             Task { await refreshSnapshot() }
@@ -472,6 +500,8 @@ final class SessionViewModel {
         state.childActivity = childActivity
         state.commandDelivery = delivery
         liveActivities = []
+        // Ход закончен — его шаги уже в записях снимка.
+        if !snapshot.isStreaming { liveTurn.reset() }
         promptMode = snapshot.isStreaming ? .followUp : .prompt
     }
 

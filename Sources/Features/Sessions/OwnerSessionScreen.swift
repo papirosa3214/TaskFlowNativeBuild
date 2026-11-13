@@ -40,26 +40,36 @@ struct OwnerSessionScreen: View {
     @State private var scrollTarget: String?
     @State private var isRenaming = false
     @State private var renameText = ""
+    /// Раскрытые полосы «Действия» и шаги — переживают пересборку строк.
+    @StateObject private var feedExpansion = RoleFeedExpansion()
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: TFSpacing.md) {
-                    ForEach(model.timeline) { item in
-                        OwnerSessionItemView(item: item)
-                            .id(item.id)
+                    // История ходами, как в старой комнате: размышления и
+                    // шаги — полосой «Действия», ответ — разметкой сервера
+                    // (владелец 12.11.2026: «вернуть живой ход… инструменты, DIF»).
+                    ForEach(model.feedRows + model.liveFeedRows) { row in
+                        OwnerSessionRowView(row: row, expansion: feedExpansion)
+                            .id(row.id)
                     }
-                    if !model.state.transientAssistantText.isEmpty {
-                        OwnerSessionReply(text: model.state.transientAssistantText, isStreaming: true)
+                    if !model.liveTurn.isEmpty {
+                        // Идущий ход — тем же пузырём, что ход роли в комнате:
+                        // текст проявляется по словам, шаги встают по мере вызова.
+                        RoleLiveTurnBubble(turn: liveRoleTurn, showsName: false,
+                                           isComplete: !model.isStreaming, pacesText: true,
+                                           expansionRow: Self.liveTurnID, expansion: feedExpansion)
+                            .id(Self.liveTurnID)
                     }
                     if model.isStreaming {
                         // Кубик хода (видео владельца 12.11.2026): думает,
                         // инструмент, роли, пишет — поворотом на свою грань.
-                        TFActivityCube(phase: activityPhase)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        // Рядом словечко, как у Claude Code: грань — чем занят Помощник.
+                        TFActivityStatus(phase: activityPhase, seed: model.liveTurn.startedAt.map { Int($0.timeIntervalSince1970) } ?? 0)
                             .id(Self.liveID)
                     }
-                    if model.timeline.isEmpty && !model.isStreaming && !model.isLoading {
+                    if model.feedRows.isEmpty && model.liveFeedRows.isEmpty && !model.isStreaming && !model.isLoading {
                         Text("Напишите, что нужно сделать.")
                             .tfText(.action)
                             .foregroundStyle(Color.tfDim)
@@ -77,7 +87,9 @@ struct OwnerSessionScreen: View {
             // (владелец 12.11.2026: «убрать клавиатуру никак не могу»).
             .keyboardDismissShield(isActive: composerFocused || keyboardUp) { dismissKeyboard() }
             .onChange(of: model.timeline.count) { _, _ in scrollToEnd(proxy) }
-            .onChange(of: model.state.transientAssistantText) { _, _ in scrollToEnd(proxy) }
+            // Ход растёт — лента идёт за низом, только если владелец у низа
+            // (как лента комнаты: уехал читать выше — не дёргаем).
+            .onChange(of: model.liveTurn) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
             // «У низа» — по тем же правилам, что лента комнаты чата
             // (`ChatFeedScrollPolicy`, с верхним и нижним отступами): кружок
             // «вниз» у низа прятался не всегда (владелец 12.11.2026). Смена
@@ -209,6 +221,14 @@ struct OwnerSessionScreen: View {
     }
 
     private static let liveID = "owner-session-live"
+    private static let liveTurnID = "owner-session-live-turn"
+
+    /// Идущий ход сессии в форме хода роли для `RoleLiveTurnBubble`.
+    private var liveRoleTurn: RoleChatLiveTurn {
+        RoleChatLiveTurn(chatID: model.activeSessionID ?? "session", userID: "u-secretary", name: "Помощник",
+                         startedAt: model.liveTurn.startedAt.map { $0.ISO8601Format() },
+                         items: model.liveTurn.items, thinking: nil)
+    }
 
     private func dismissKeyboard() {
         composerFocused = false
@@ -221,7 +241,8 @@ struct OwnerSessionScreen: View {
     private var activityPhase: TFActivityPhase {
         if model.childSessions.contains(where: { model.state.childActivity[$0.id] == .running }) { return .roles }
         if model.liveActivities.contains(where: { $0.kind == .tool && $0.status == .running }) { return .tool }
-        if !model.state.transientAssistantText.isEmpty { return .writing }
+        if model.liveTurn.hasRunningTool { return .tool }
+        if case .text? = model.liveTurn.items.last { return .writing }
         return .thinking
     }
 
@@ -339,16 +360,18 @@ struct OwnerSessionScreen: View {
 }
 
 /// Одна запись ленты сессии: сообщение владельца, ответ Помощника или шаг
-/// инструмента (свёрнутой строкой).
-private struct OwnerSessionItemView: View {
-    let item: SessionTimelineItem
+/// инструмента (свёрнутой строкой). Размышления и шаги инструментов идут той
+/// же полосой «Действия» и шторкой шага, что в комнате.
+private struct OwnerSessionRowView: View {
+    let row: SessionFeedRow
+    let expansion: RoleFeedExpansion
 
     var body: some View {
-        switch item.kind {
-        case .message where item.role == "user":
+        switch row {
+        case .user(_, let text):
             HStack {
                 Spacer(minLength: 48)
-                Text(item.text)
+                Text(text)
                     .tfText(.body)
                     .textSelection(.enabled)
                     .foregroundStyle(Color.tfText)
@@ -358,15 +381,12 @@ private struct OwnerSessionItemView: View {
                             .fill(Color.tfFieldDark)
                     )
             }
-        case .message where item.role == "assistant":
-            OwnerSessionReply(text: item.text, isStreaming: false, blocks: item.blocks)
-        default:
-            // Вызовы и результаты инструментов — свёрнутой строкой с названием,
-            // сам вывод инструмента в ленту не льётся.
-            Label(item.title, systemImage: item.isError ? "exclamationmark.triangle" : "wrench.and.screwdriver")
-                .tfText(.meta)
-                .foregroundStyle(item.isError ? Color.tfRed : Color.tfDim)
-                .lineLimit(1)
+        case .work(let id, let items):
+            RoleLiveItemsList(items: items, showsActionPreview: true,
+                              expansionRow: id, expansion: expansion)
+        case .reply(_, let text, let blocks):
+            OwnerSessionReply(text: text, isStreaming: false,
+                              blocks: blocks.flatMap { ChatServerBlock.list(fromFoundation: $0.sessionFoundation) })
         }
     }
 }
@@ -379,11 +399,13 @@ private struct OwnerSessionReply: View {
     var blocks: [ChatServerBlock]? = nil
 
     var body: some View {
-        if let blocks, !blocks.isEmpty {
+        if let json = SessionFeed.envelope(in: text) {
+            // Конверт — блоками, как в чате; сырой JSON не показываем, даже если
+            // модель написала ответ словами и следом им же конвертом (13.11.2026).
+            ChatStructuredOutputView(json: json, isStreaming: isStreaming)
+        } else if let blocks, !blocks.isEmpty {
             // Разметка от сервера — та же, что в чате (владелец 12.11.2026).
             RoleReplyMarkdown(text: text, serverBlocks: blocks)
-        } else if let json = Self.envelopeJSON(text) {
-            ChatStructuredOutputView(json: json, isStreaming: isStreaming)
         } else {
             // Блоки Markdown готовит сервер чата; у сессий их пока нет —
             // строчный Markdown нашим шрифтом.
@@ -400,18 +422,5 @@ private struct OwnerSessionReply: View {
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
-    }
-
-    /// Помощник отвечает конвертом `{"schema_version":1,"output":[…]}`, иногда
-    /// в ограде ```json. Не конверт — `nil`.
-    static func envelopeJSON(_ text: String) -> String? {
-        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if body.hasPrefix("```") {
-            body = String(body.drop { $0 != "\n" }.dropFirst())
-            if body.hasSuffix("```") { body = String(body.dropLast(3)) }
-            body = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard body.hasPrefix("{"), body.contains("\"schema_version\"") else { return nil }
-        return body
     }
 }

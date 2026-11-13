@@ -215,7 +215,7 @@ private struct RoleLiveItemsContent: View {
         // Идентичность куска — по содержимому (см. `RoleLiveSegment.identities`):
         // по номеру строки пересоздавались от прихода текста в середину хода.
         let identities = RoleLiveSegment.identities(segments)
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+        VStack(alignment: .leading, spacing: TFSpacing.xs) { // строки хода вдвое плотнее (владелец 13.11.2026)
             ForEach(Array(zip(identities, segments)), id: \.0) { identity, segment in
                 switch segment {
                 case .single(let item):
