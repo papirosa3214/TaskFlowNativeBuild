@@ -234,6 +234,17 @@ public extension APIClient {
         return response.message
     }
 
+    /// Ответ по номеру вопроса, без чата (сервер 8ddc9d78, владелец
+    /// 13.11.2026): вопрос — запись в таблице, чат лишь место показа.
+    func answerQuestion(questionID: String, answers: [ChatQuestionAnswerEntry], note: String? = nil) async throws {
+        struct Body: Encodable {
+            let answers: [ChatQuestionAnswerEntry]
+            let note: String?
+        }
+        struct Reply: Decodable { let resumed: Bool? }
+        let _: Reply = try await request(.post, "/questions/\(questionID)/answer", body: Body(answers: answers, note: note))
+    }
+
     /// `recipientSubtaskID` — шаг плана, которому адресовано сообщение: сервер
     /// доставляет его роли этого шага, а не всем участникам чата.
     func sendRoleChatMessage(chatID: String, text: String, attachmentIDs: [String] = [], mode: RoleChatWorkMode = .work, executionMode: ChatExecutionMode? = nil,

@@ -102,13 +102,18 @@ struct AttentionScreen: View {
             if phase == .active { Task { await model.load() } }
         }
         .tfSheet(item: $answeringTicket, onDismiss: { Task { await model.load() } }) { ticket in
-            if let question = ticket.question, let chatID = ticket.chat_id {
+            if let question = ticket.question {
                 NavigationStack {
                     ScrollView {
                         RoleQuestionCard(question: question, nativePresentation: true) { answers, note in
-                            _ = try await APIClient().answerChatQuestion(
-                                chatID: chatID, questionID: question.id, answers: answers, note: note
-                            )
+                            if let chatID = ticket.chat_id, !chatID.isEmpty {
+                                _ = try await APIClient().answerChatQuestion(
+                                    chatID: chatID, questionID: question.id, answers: answers, note: note
+                                )
+                            } else {
+                                // Вопрос без чата — ответ по номеру вопроса.
+                                try await APIClient().answerQuestion(questionID: question.id, answers: answers, note: note)
+                            }
                             answeringTicket = nil
                             await model.load()
                         }

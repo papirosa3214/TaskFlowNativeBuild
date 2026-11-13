@@ -65,7 +65,7 @@ struct ApiAttention: Decodable {
 }
 
 enum AttentionTicketAction: Equatable {
-    case answer(chatID: String, questionID: String)
+    case answer(chatID: String?, questionID: String)
     case task(String)
     case chat(String)
 }
@@ -94,9 +94,10 @@ struct ApiAttentionTicket: Decodable, Identifiable {
             guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return value
         }
-        if let chatID = nonempty(chat_id), let question, question.status == "open",
+        // Вопрос — запись в таблице: отвечать можно и без чата (13.11.2026).
+        if let question, question.status == "open",
            nonempty(question.id) != nil, !question.questions.isEmpty {
-            return .answer(chatID: chatID, questionID: question.id)
+            return .answer(chatID: nonempty(chat_id), questionID: question.id)
         }
         if let taskID = nonempty(task_id) { return .task(taskID) }
         if let chatID = nonempty(chat_id) { return .chat(chatID) }
