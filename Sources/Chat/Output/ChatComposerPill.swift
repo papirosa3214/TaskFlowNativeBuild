@@ -24,6 +24,9 @@ struct ChatComposerPill: View {
     /// Идёт ход роли: пилюля есть всегда, с сегментом «Работает · 0:42».
     var isWorking = false
     var workStartedAt: Date? = nil
+    /// Сессии (бета): вместо «Работает» — словечко кубика хода («Канитель…»),
+    /// синхронно с ним (тот же `seed`). nil — как было, «Работает».
+    var workingWordSeed: Int? = nil
 
     @State private var expanded = false
     @Namespace private var glassNamespace
@@ -163,6 +166,12 @@ struct ChatComposerPill: View {
         return views
     }
 
+    /// «Работает» или, в сессиях, словечко кубика на этот момент.
+    private func workingTitle(at date: Date) -> String {
+        guard let seed = workingWordSeed else { return "Работает" }
+        return TFActivityStatus.word(at: date, seed: seed) + "…"
+    }
+
     /// «Работает · 0:42»: значок пульсирует, таймер тикает раз в секунду
     /// только здесь — лента и остальная пилюля не перерисовываются.
     private func workingSegment(compact: Bool) -> some View {
@@ -176,11 +185,13 @@ struct ChatComposerPill: View {
                 if let start = workStartedAt {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(compact ? Self.clock(from: start, to: context.date)
-                                     : "Работает · \(Self.clock(from: start, to: context.date))")
+                                     : "\(workingTitle(at: context.date)) · \(Self.clock(from: start, to: context.date))")
                             .monospacedDigit()
                     }
                 } else {
-                    Text("Работает")
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(workingTitle(at: context.date))
+                    }
                 }
             }
             .lineLimit(1)

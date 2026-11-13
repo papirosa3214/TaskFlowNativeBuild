@@ -140,7 +140,9 @@ struct OwnerSessionScreen: View {
                     showsScrollDown: !isNearBottom,
                     onScrollDown: { scrollDownTick += 1 },
                     isWorking: model.isStreaming,
-                    workStartedAt: workStartedAt
+                    workStartedAt: workStartedAt,
+                    // Словечко кубика вместо «Работает» (владелец 13.11.2026).
+                    workingWordSeed: model.liveTurn.startedAt.map { Int($0.timeIntervalSince1970) } ?? 0
                 )
                 composer.padding(.bottom, TFSpacing.sm)
             }
