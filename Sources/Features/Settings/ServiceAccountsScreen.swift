@@ -295,7 +295,7 @@ struct ServiceAccountsScreen: View {
                 .textSelection(.enabled)
                 HStack(spacing: TFSpacing.sm) {
                     TFButton(isKeyCopied ? "Скопировано" : "Скопировать") {
-                        UIPasteboard.general.string = issued.token
+                        SafePasteboard.copySecret(issued.token)
                         isKeyCopied = true
                     }
                     Button("Готово") { viewModel.dismissIssuedToken(); isKeyCopied = false }

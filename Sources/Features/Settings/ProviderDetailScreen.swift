@@ -318,7 +318,7 @@ struct ProviderDetailScreen: View {
                                     .foregroundStyle(Color.tfText)
                                     .textSelection(.enabled)
                                 Button {
-                                    UIPasteboard.general.string = code
+                                    SafePasteboard.copySecret(code)
                                 } label: {
                                     Text("Скопировать код")
                                         .tfText(.action)

@@ -140,7 +140,7 @@ private struct SecretDetailScreen: View {
                         .font(.body.monospaced())
                         .textSelection(.enabled)
                         .accessibilityIdentifier("secret-value")
-                    Button("Скопировать") { UIPasteboard.general.string = value }
+                    Button("Скопировать") { SafePasteboard.copySecret(value) }
                     Button("Скрыть") { self.value = nil }
                 } else if revealing {
                     TFLoading(.inline)
