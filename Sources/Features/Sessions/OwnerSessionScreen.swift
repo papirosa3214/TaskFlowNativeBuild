@@ -83,6 +83,22 @@ struct OwnerSessionScreen: View {
                             .foregroundStyle(Color.tfDim)
                             .padding(.top, TFSpacing.xl)
                     }
+                    // Метка самого низа ленты (владелец 13.11.2026: кружок «вниз»
+                    // не прятался у дна). Видна — лента у низа; к ней же едет
+                    // кнопка «вниз». Расчёт по геометрии с отступом поля ввода
+                    // ошибался на высоту поля и считал дно «не низом».
+                    // Раньше: «У низа» — по тем же правилам, что лента комнаты чата
+                    // (`ChatFeedScrollPolicy`, с верхним и нижним отступами): кружок
+                    // «вниз» у низа прятался не всегда (владелец 12.11.2026). Смена
+                    // пишется в журнал телефона — если кружок опять не спрячется,
+                    // будет видно, что считала лента.
+                    Color.clear
+                        .frame(height: 1)
+                        .id(Self.bottomID)
+                        .onScrollVisibilityChange(threshold: 0.01) { visible in
+                            isNearBottom = visible
+                            ClientLog.shared.add("session=\(model.activeSessionID ?? "new") scroll:nearBottom=\(visible)")
+                        }
                 }
                 .padding(.horizontal, TFSpacing.screenHorizontal)
                 .padding(.vertical, TFSpacing.md)
@@ -100,21 +116,6 @@ struct OwnerSessionScreen: View {
             // Ход растёт — лента идёт за низом, только если владелец у низа
             // (как лента комнаты: уехал читать выше — не дёргаем).
             .onChange(of: model.liveTurn) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
-            // «У низа» — по тем же правилам, что лента комнаты чата
-            // (`ChatFeedScrollPolicy`, с верхним и нижним отступами): кружок
-            // «вниз» у низа прятался не всегда (владелец 12.11.2026). Смена
-            // пишется в журнал телефона — если кружок опять не спрячется,
-            // будет видно, что считала лента.
-            .onScrollGeometryChange(for: Bool.self) { geometry in
-                ChatFeedScrollPolicy.position(contentHeight: geometry.contentSize.height,
-                                              offset: geometry.contentOffset.y,
-                                              viewport: geometry.containerSize.height,
-                                              insetTop: geometry.contentInsets.top,
-                                              insetBottom: geometry.contentInsets.bottom).isNearBottom
-            } action: { _, near in
-                isNearBottom = near
-                ClientLog.shared.add("session=\(model.activeSessionID ?? "new") scroll:nearBottom=\(near)")
-            }
             .onChange(of: scrollDownTick) { _, _ in
                 guard let target = bottomTargetID else { return }
                 withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
@@ -234,6 +235,7 @@ struct OwnerSessionScreen: View {
 
     private static let liveID = "owner-session-live"
     private static let liveTurnID = "owner-session-live-turn"
+    private static let bottomID = "owner-session-bottom"
 
     /// Идущий ход сессии в форме хода роли для `SessionLiveTurnBubble`.
     private var liveRoleTurn: RoleChatLiveTurn {
@@ -367,11 +369,7 @@ struct OwnerSessionScreen: View {
     /// Нижняя видимая строка ленты. Раньше целью был `timeline.last?.id`, а у
     /// строк ленты свои id — прокрутка не доезжала до низа, и кружок «вниз»
     /// не прятался (владелец 13.11.2026).
-    private var bottomTargetID: String? {
-        if model.isStreaming { return Self.liveID }
-        if !model.liveTurn.isEmpty { return Self.liveTurnID }
-        return model.displayRows.last?.id
-    }
+    private var bottomTargetID: String? { Self.bottomID }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {
         guard let target = bottomTargetID else { return }
