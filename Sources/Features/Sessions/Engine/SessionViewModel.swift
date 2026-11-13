@@ -60,7 +60,14 @@ final class SessionViewModel {
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
     var displayRows: [SessionFeedRow] {
-        let rows = feedRows + liveFeedRows
+        var history = feedRows
+        // Пока на экране напечатанный ход, его же записи из снимка не
+        // показываем: хвост после последнего сообщения владельца.
+        if !liveTurn.isEmpty,
+           let lastUser = history.lastIndex(where: { if case .user = $0 { return true } else { return false } }) {
+            history = Array(history[...lastUser])
+        }
+        let rows = history + liveFeedRows
         guard let pending = pendingOutgoing else { return rows }
         let lastUser = rows.last { if case .user = $0 { return true } else { return false } }
         if case .user(_, let text)? = lastUser,
@@ -518,8 +525,10 @@ final class SessionViewModel {
         state.childActivity = childActivity
         state.commandDelivery = delivery
         liveActivities = []
-        // Ход закончен — его шаги уже в записях снимка.
-        if !snapshot.isStreaming { liveTurn.reset() }
+        // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
+        // остаётся на экране как есть, без подмены записями снимка (владелец
+        // 13.11.2026: «если он уже напечатался — итоговый ответ не нужен»);
+        // сбрасывается на следующем `agent_start`.
         promptMode = snapshot.isStreaming ? .followUp : .prompt
     }
 
