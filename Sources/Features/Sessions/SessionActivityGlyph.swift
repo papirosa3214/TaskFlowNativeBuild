@@ -4,7 +4,7 @@ import SwiftUI
 // Значок хода вместо кубика (владелец 13.11.2026, видео IMG_9629: «смотри не на
 // кубик, а на иконку в центре… вот такие четыре иконки точь-в-точь»).
 // Четыре анимации с граней кубика, каждая — своему состоянию хода:
-// пишет — три точки волной; думает — капля по пунктиру; инструмент — кольцо
+// пишет — три точки меняются местами по кругу; думает — капля по пунктиру; инструмент — кольцо
 // из восьми точек с бегущей волной; роли — четыре квадратика лесенкой.
 struct SessionActivityGlyph: View {
     let phase: TFActivityPhase
@@ -29,13 +29,28 @@ struct SessionActivityGlyph: View {
         .accessibilityLabel(phase.label)
     }
 
-    /// Три точки подпрыгивают друг за другом.
+    /// Три точки меняются местами по окружности (видео владельца, 13.11.2026:
+    /// «не прыгают… местами меняются по кругу»): левая пара, правая пара,
+    /// затем крайние вокруг стоящей середины — по полному кругу.
     private static func dots(_ c: GraphicsContext, _ a: CGSize, _ t: Double, _ s: GraphicsContext.Shading) {
-        let r = a.width * 0.1, step = a.width * 0.28, midY = a.height * 0.55
-        for i in 0..<3 {
-            let lift = max(0, sin(2 * .pi * (t * 1.4 - Double(i) * 0.16))) * a.height * 0.18
-            let x = a.width / 2 + CGFloat(i - 1) * step
-            c.fill(Path(ellipseIn: CGRect(x: x - r, y: midY - lift - r, width: r * 2, height: r * 2)), with: s)
+        let pairs = [(0, 1), (1, 2), (0, 2)]
+        let stepLength = 0.55
+        let n = Int(floor(t / stepLength))
+        let raw = min(1, (t / stepLength - Double(n)) / 0.8)
+        let p = raw < 0.5 ? 4 * raw * raw * raw : 1 - pow(-2 * raw + 2, 3) / 2
+        let r = a.width * 0.1, step = a.width * 0.28, midY = a.height / 2
+        func slotX(_ i: Int) -> CGFloat { a.width / 2 + CGFloat(i - 1) * step }
+        let (first, second) = pairs[n % 3]
+        let center = (slotX(first) + slotX(second)) / 2
+        let radius = (slotX(second) - slotX(first)) / 2
+        for slot in 0..<3 {
+            var x = slotX(slot), y = midY
+            if slot == first || slot == second {
+                let angle = (slot == first ? Double.pi : 0) + .pi * p
+                x = center + radius * CGFloat(cos(angle))
+                y = midY - radius * CGFloat(sin(angle))
+            }
+            c.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)), with: s)
         }
     }
 
