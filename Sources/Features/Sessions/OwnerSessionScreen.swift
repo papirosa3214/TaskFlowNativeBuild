@@ -423,17 +423,12 @@ private struct OwnerSessionReply: View {
             // Конверт — блоками, как в чате; сырой JSON не показываем, даже если
             // модель написала ответ словами и следом им же конвертом (13.11.2026).
             ChatStructuredOutputView(json: json, isStreaming: isStreaming)
-        } else if let blocks, !blocks.isEmpty {
-            // Разметка от сервера — та же, что в чате (владелец 12.11.2026).
-            RoleReplyMarkdown(text: text, serverBlocks: blocks)
         } else {
-            // Блоки Markdown готовит сервер чата; у сессий их пока нет —
-            // строчный Markdown нашим шрифтом.
-            Text(Self.inlineMarkdown(text))
-                .tfText(.body)
-                .foregroundStyle(Color.tfChatText)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Готовый ответ — тем же разбором, что живой ход (владелец 13.11.2026:
+            // «как оно вначале пишется, и всё, не приходил этот итоговый ответ»).
+            // Разметку сервера (`blocks`) здесь не берём: иначе по концу хода
+            // текст перерисовывался в другой вид.
+            RoleReplyMarkdown(text: text)
         }
     }
 
