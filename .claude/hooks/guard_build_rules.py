@@ -52,12 +52,19 @@ if HEAVY_MCP.match(tool):
 if tool == "Bash":
     cmd = inp.get("command", "")
     if re.search(r"rm\s+-[a-zA-Z]*r[a-zA-Z]*\s+[^;&|]*(DerivedData|build_device|build_sim|build_generic)", cmd):
-        decide("deny", "Правило сборки 2: удалять DerivedData и каталоги сборки — только с отдельного разрешения владельца.")
-    if re.search(r"(?<![\w-])xcodebuild(?![\w-])", cmd):
-        if re.search(r"(?<![\w-])clean(?![\w-])", cmd):
-            decide("deny", "Правило сборки 2: clean build — только с отдельного разрешения владельца.")
-        if re.search(r"(?<![\w-])(build|test|archive|build-for-testing)(?![\w-])", cmd):
-            if not re.search(r"-jobs\s+2(?!\d)", cmd):
+        decide("deny", "Правило сборки 2: DerivedData и каталоги сборки не удаляются никогда (владелец 13.11.2026).")
+    # Только настоящий вызов: xcodebuild в начале команды (после ;, &&, |,
+    # перевода строки, `$(` или переменных окружения), а не слово в тексте
+    # сообщения коммита или скрипта.
+    calls = re.findall(
+        r"(?:^|[;&|\n(]|\$\()\s*(?:env\s+)?(?:[A-Z_][A-Z0-9_]*=\S*\s+)*(?:/usr/bin/|\S*/bin/)?xcodebuild\b([^;&|\n]*)",
+        cmd,
+    )
+    for args in calls:
+        if re.search(r"(?<![\w-])clean(?![\w-])", args):
+            decide("deny", "Правило сборки 2: чистой сборки не бывает никогда (владелец 13.11.2026) — только инкрементальная.")
+        if re.search(r"(?<![\w-])(build|test|archive|build-for-testing)(?![\w-])", args):
+            if not re.search(r"-jobs\s+2(?!\d)", args):
                 decide("deny", "Правило сборки 4: xcodebuild только с -jobs 2.")
             if busy():
                 decide("deny", "Правило сборки 1/6: уже идёт сборка или тесты — дождаться окончания.")
