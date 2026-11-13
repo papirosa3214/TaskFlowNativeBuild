@@ -251,7 +251,10 @@ struct OwnerSessionScreen: View {
         var lastText: String?
         if case .text(let text)? = model.liveTurn.items.last { lastText = text }
         if lastText == nil, let row = model.displayRows.last {
-            if case .reply(_, let text, _) = row { lastText = text } else { return [] }
+            if case .reply(_, let text, let entry) = row {
+                if let server = SessionFeed.serverQuickReplies(entry) { return server }
+                lastText = text
+            } else { return [] }
         }
         guard let text = lastText else { return [] }
         let inline = SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).replies
@@ -428,8 +431,7 @@ private struct OwnerSessionRowView: View {
             SessionLiveItemsList(items: items, showsActionPreview: true,
                               expansionRow: id, expansion: expansion)
         case .reply(_, let text, let blocks):
-            OwnerSessionReply(text: text, isStreaming: false,
-                              blocks: blocks.flatMap { ChatServerBlock.list(fromFoundation: $0.sessionFoundation) })
+            OwnerSessionReply(text: text, isStreaming: false, entry: blocks)
         }
     }
 }
@@ -439,10 +441,20 @@ private struct OwnerSessionRowView: View {
 private struct OwnerSessionReply: View {
     let text: String
     let isStreaming: Bool
-    var blocks: [ChatServerBlock]? = nil
+    /// Запись снимка: поля, подготовленные сервером (как у ответа роли).
+    var entry: SessionJSON? = nil
 
     var body: some View {
-        if let json = SessionFeed.envelope(in: text) {
+        if let display = SessionFeed.serverDisplayText(entry) {
+            // Готовое сервера — обработка как у ролей (сервер 9e2df421,
+            // владелец 13.11.2026: «скопировать, что делает сервер у ролей»).
+            VStack(alignment: .leading, spacing: TFSpacing.md) {
+                RoleReplyMarkdown(text: display)
+                if let extras = SessionFeed.serverEnvelopeExtras(entry) {
+                    ChatStructuredOutputView(json: extras, isStreaming: false)
+                }
+            }
+        } else if let json = SessionFeed.envelope(in: text) {
             // Конверт — блоками, как в чате; сырой JSON не показываем, даже если
             // модель написала ответ словами и следом им же конвертом (13.11.2026).
             ChatStructuredOutputView(json: json, isStreaming: isStreaming)

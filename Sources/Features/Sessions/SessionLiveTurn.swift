@@ -129,7 +129,7 @@ enum SessionFeed {
                let text = details["text"]?.sessionString, !text.isEmpty {
                 flush()
                 rows.append(details["role"]?.sessionString == "assistant"
-                            ? .reply(id: entryID, text: text, blocks: object["text_blocks"])
+                            ? .reply(id: entryID, text: text, blocks: entry)
                             : .user(id: entryID, text: text))
                 continue
             }
@@ -190,7 +190,7 @@ enum SessionFeed {
                 }
                 if !replyText.isEmpty {
                     flush()
-                    rows.append(.reply(id: entryID, text: replyText, blocks: object["text_blocks"]))
+                    rows.append(.reply(id: entryID, text: replyText, blocks: entry))
                 }
             }
         }
@@ -313,6 +313,29 @@ enum SessionFeed {
         object["output"] = output
         guard let out = try? JSONSerialization.data(withJSONObject: object) else { return nil }
         return String(data: out, encoding: .utf8)
+    }
+
+    /// Поля, которые сервер готовит ответу сессии той же обработкой, что
+    /// ответу роли (`display_text`, `quick_replies`, `role_envelope`,
+    /// сервер 9e2df421). Есть — берём их, нет (старый сервер) — разбираем сами.
+    static func serverDisplayText(_ entry: SessionJSON?) -> String? {
+        guard case .object(let o)? = entry else { return nil }
+        return o["display_text"]?.sessionString
+    }
+
+    static func serverQuickReplies(_ entry: SessionJSON?) -> [String]? {
+        guard case .object(let o)? = entry, let list = o["quick_replies"]?.foundationValue as? [Any] else { return nil }
+        return Array(list.compactMap { $0 as? String }.prefix(3))
+    }
+
+    static func serverEnvelopeExtras(_ entry: SessionJSON?) -> String? {
+        guard case .object(let o)? = entry, var envelope = o["role_envelope"]?.foundationValue as? [String: Any] else { return nil }
+        let output = (envelope["output"] as? [[String: Any]] ?? []).filter { ($0["type"] as? String) != "text" }
+        let artifacts = envelope["artifacts"] as? [Any] ?? []
+        guard !output.isEmpty || !artifacts.isEmpty else { return nil }
+        envelope["output"] = output
+        guard let data = try? JSONSerialization.data(withJSONObject: envelope) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// Варианты из конверта (`output[].text`), если строка `БЫСТРО:` там.
