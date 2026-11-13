@@ -212,19 +212,13 @@ private struct SessionLiveItemsContent: View {
                 // Идущий ответ встаёт целыми блоками (абзацами): хвост,
                 // который ещё пишется, не показывается до конца абзаца
                 // (владелец 11.11.2026, вместо пейсера по буквам).
-                let settled = isStreaming && item == items.last ? RoleLiveBlocks.settled(rawText) : rawText
-                // Служебный конверт в конце ответа не показываем (владелец 13.11.2026).
-                let text = SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(settled)).clean
+                let text = isStreaming && item == items.last ? RoleLiveBlocks.settled(rawText) : rawText
                 // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
                 // рефакторинг 07.11 выкинул `display`, и кнопка переключала
                 // только флаг). Готовые куски — переводом, остальное — как есть.
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
                                   prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
-                // Карточки из конверта — под текстом, когда конверт дописан.
-                if let extras = SessionFeed.envelopeExtras(in: rawText) {
-                    ChatStructuredOutputView(json: extras, isStreaming: false)
-                }
             case .step(let step) where SessionRoleCall(step) != nil:
                 Button { openStep(step) } label: {
                     SessionRoleCallRow(call: SessionRoleCall(step)!, status: step.status)

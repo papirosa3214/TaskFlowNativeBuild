@@ -24,6 +24,15 @@ struct SessionLiveTurn: Equatable {
         return false
     }
 
+    /// Блоки сервера — в тот же реестр, что у живого хода ролей
+    /// (`registerCurrentBlocks`): экран берёт их оттуда, текст не разбирает.
+    static func register(_ value: SessionJSON?, for text: String) {
+        guard let list = value?.foundationValue as? [Any], !list.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: list),
+              let blocks = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !blocks.isEmpty else { return }
+        ChatLiveBlockRegistry.shared.register(blocks, for: text)
+    }
+
     mutating func reset() {
         items = []
         startedAt = nil
@@ -37,20 +46,32 @@ struct SessionLiveTurn: Equatable {
             startedAt = now
         case "assistant_thinking_delta":
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
+            // Тонкий клиент (владелец 13.11.2026): весь текст части и блоки
+            // готовит сервер; кусок `delta` — только если сервер старый.
+            let server = payload["text"]?.sessionString
             if case .thinking(let thought)? = items.last, thought.isRunning {
+                let text = server ?? thought.text + delta
                 items[items.count - 1] = .thinking(RoleChatThinking(
-                    id: thought.id, text: thought.text + delta, isRunning: true, startedAt: thought.startedAt))
+                    id: thought.id, text: text, isRunning: true, startedAt: thought.startedAt))
+                Self.register(payload["blocks"], for: text)
             } else {
+                let text = server ?? delta
                 items.append(.thinking(RoleChatThinking(
-                    id: "thinking-\(items.count)", text: delta, isRunning: true, startedAt: stamp)))
+                    id: "thinking-\(items.count)", text: text, isRunning: true, startedAt: stamp)))
+                Self.register(payload["blocks"], for: text)
             }
         case "assistant_text_delta":
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
             closeThinking(at: stamp)
+            let server = payload["text"]?.sessionString
             if case .text(let text)? = items.last {
-                items[items.count - 1] = .text(text + delta)
+                let full = server ?? text + delta
+                items[items.count - 1] = .text(full)
+                Self.register(payload["blocks"], for: full)
             } else {
-                items.append(.text(delta))
+                let full = server ?? delta
+                items.append(.text(full))
+                Self.register(payload["blocks"], for: full)
             }
         case "tool_start":
             closeThinking(at: stamp)
@@ -264,56 +285,8 @@ enum SessionFeed {
         return nil
     }
 
-    /// Текст без служебного конверта в конце (```json {"schema_version"…}```),
-    /// в том числе недописанного, пока ход идёт. Модель пишет ответ словами и
-    /// следом им же конвертом; на экране — только слова (владелец 13.11.2026:
-    /// сырой JSON в конце ответа).
-    static func strippingEnvelope(_ text: String) -> String {
-        var cut = text.endIndex
-        var search = text.startIndex
-        while let open = text.range(of: "```json", range: search..<text.endIndex) {
-            let after = text[open.upperBound...].drop { $0.isWhitespace }
-            if after.isEmpty || after.hasPrefix("{") && (after.contains("\"schema_version\"") || !after.contains("}")) {
-                cut = open.lowerBound
-                break
-            }
-            search = open.upperBound
-        }
-        return String(text[..<cut]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 
-    /// Быстрые ответы: модель заканчивает ответ строкой
-    /// `БЫСТРО: вариант | вариант` — у ролей её разбирает сервер, у сессий
-    /// разбираем здесь (владелец 13.11.2026: «быстрые ответы сломались, в
-    /// отличие от ролей»). Тот же разбор, что `extractQuickReplies` сервера.
-    static func quickReplies(in text: String) -> (clean: String, replies: [String]) {
-        var lines = text.components(separatedBy: "\n")
-        guard let last = lines.lastIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) else { return (text, []) }
-        let line = lines[last]
-        guard let marker = line.range(of: "БЫСТРО:", options: .caseInsensitive),
-              marker.lowerBound == line.startIndex || line[line.index(before: marker.lowerBound)].isWhitespace else { return (text, []) }
-        let replies = line[marker.upperBound...].split(separator: "|")
-            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        guard !replies.isEmpty else { return (text, []) }
-        let prefix = String(line[..<marker.lowerBound]).trimmingCharacters(in: .whitespaces)
-        lines[last] = prefix
-        let clean = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return (clean, Array(replies.prefix(3)))
-    }
 
-    /// Конверт без текстовых блоков: текст уже показан словами, а карточки
-    /// (решение владельца, таблицы, отчёт, файлы) рисуются под ним
-    /// (владелец 13.11.2026: «показывать блоки»). nil — показывать нечего.
-    static func envelopeExtras(in text: String) -> String? {
-        guard let json = envelope(in: text), let data = json.data(using: .utf8),
-              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
-        let output = (object["output"] as? [[String: Any]] ?? []).filter { ($0["type"] as? String) != "text" }
-        let artifacts = object["artifacts"] as? [Any] ?? []
-        guard !output.isEmpty || !artifacts.isEmpty else { return nil }
-        object["output"] = output
-        guard let out = try? JSONSerialization.data(withJSONObject: object) else { return nil }
-        return String(data: out, encoding: .utf8)
-    }
 
     /// Поля, которые сервер готовит ответу сессии той же обработкой, что
     /// ответу роли (`display_text`, `quick_replies`, `role_envelope`,
@@ -321,6 +294,11 @@ enum SessionFeed {
     static func serverDisplayText(_ entry: SessionJSON?) -> String? {
         guard case .object(let o)? = entry else { return nil }
         return o["display_text"]?.sessionString
+    }
+
+    static func serverTextBlocks(_ entry: SessionJSON?) -> [ChatServerBlock]? {
+        guard case .object(let o)? = entry, let value = o["text_blocks"]?.foundationValue else { return nil }
+        return ChatServerBlock.list(fromFoundation: value)
     }
 
     static func serverQuickReplies(_ entry: SessionJSON?) -> [String]? {
@@ -338,19 +316,6 @@ enum SessionFeed {
         return String(data: data, encoding: .utf8)
     }
 
-    /// Варианты из конверта (`output[].text`), если строка `БЫСТРО:` там.
-    static func envelopeQuickReplies(in text: String) -> [String] {
-        guard let json = envelope(in: text), let data = json.data(using: .utf8),
-              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let output = object["output"] as? [[String: Any]] else { return [] }
-        for block in output.reversed() {
-            if let t = block["text"] as? String {
-                let found = quickReplies(in: t).replies
-                if !found.isEmpty { return found }
-            }
-        }
-        return []
-    }
 
     static func stamp(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)

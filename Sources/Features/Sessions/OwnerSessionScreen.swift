@@ -162,7 +162,6 @@ struct OwnerSessionScreen: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardUp = false
         }
-        .environment(\.roleReplyPlainFallback, true)
         .tfScreenBackground()
         .tfNativeHeader(headerTitle, displayMode: .inline)
         // Внутри сессии нижней панели вкладок нет (владелец 08.11.2026,
@@ -247,18 +246,15 @@ struct OwnerSessionScreen: View {
     /// Варианты быстрого ответа к последнему ответу Помощника; после
     /// сообщения владельца — нет.
     private var quickReplies: [String] {
+        // Варианты готовит сервер (поле quick_replies последнего ответа в
+        // снимке) — телефон их только показывает (тонкий клиент, 13.11.2026).
         guard !model.isStreaming, model.pendingOutgoing == nil else { return [] }
-        var lastText: String?
-        if case .text(let text)? = model.liveTurn.items.last { lastText = text }
-        if lastText == nil, let row = model.displayRows.last {
-            if case .reply(_, let text, let entry) = row {
-                if let server = SessionFeed.serverQuickReplies(entry) { return server }
-                lastText = text
-            } else { return [] }
+        if case .user? = model.displayRows.last { return [] }
+        for row in model.feedRows.reversed() {
+            if case .user = row { return [] }
+            if case .reply(_, _, let entry) = row { return SessionFeed.serverQuickReplies(entry) ?? [] }
         }
-        guard let text = lastText else { return [] }
-        let inline = SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).replies
-        return inline.isEmpty ? SessionFeed.envelopeQuickReplies(in: text) : inline
+        return []
     }
 
     private static let liveID = "owner-session-live"
@@ -445,29 +441,13 @@ private struct OwnerSessionReply: View {
     var entry: SessionJSON? = nil
 
     var body: some View {
-        if let display = SessionFeed.serverDisplayText(entry) {
-            // Готовое сервера — обработка как у ролей (сервер 9e2df421,
-            // владелец 13.11.2026: «скопировать, что делает сервер у ролей»).
-            VStack(alignment: .leading, spacing: TFSpacing.md) {
-                RoleReplyMarkdown(text: display)
-                if let extras = SessionFeed.serverEnvelopeExtras(entry) {
-                    ChatStructuredOutputView(json: extras, isStreaming: false)
-                }
-            }
-        } else if let json = SessionFeed.envelope(in: text) {
-            // Конверт — блоками, как в чате; сырой JSON не показываем, даже если
-            // модель написала ответ словами и следом им же конвертом (13.11.2026).
-            ChatStructuredOutputView(json: json, isStreaming: isStreaming)
-        } else {
-            // Готовый ответ — тем же разбором, что живой ход (владелец 13.11.2026:
-            // «как оно вначале пишется, и всё, не приходил этот итоговый ответ»).
-            // Разметку сервера (`blocks`) здесь не берём: иначе по концу хода
-            // текст перерисовывался в другой вид.
-            VStack(alignment: .leading, spacing: TFSpacing.md) {
-                RoleReplyMarkdown(text: SessionFeed.quickReplies(in: SessionFeed.strippingEnvelope(text)).clean)
-                if let extras = SessionFeed.envelopeExtras(in: text) {
-                    ChatStructuredOutputView(json: extras, isStreaming: false)
-                }
+        // Тонкий клиент (владелец 13.11.2026): текст, блоки и карточки
+        // готовит сервер той же обработкой, что ответ роли; телефон рисует.
+        VStack(alignment: .leading, spacing: TFSpacing.md) {
+            RoleReplyMarkdown(text: SessionFeed.serverDisplayText(entry) ?? text,
+                              serverBlocks: SessionFeed.serverTextBlocks(entry))
+            if let extras = SessionFeed.serverEnvelopeExtras(entry) {
+                ChatStructuredOutputView(json: extras, isStreaming: false)
             }
         }
     }
