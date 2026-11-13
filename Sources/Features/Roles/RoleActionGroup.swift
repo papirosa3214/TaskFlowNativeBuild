@@ -78,12 +78,15 @@ struct RoleActionGroup<Row: View>: View {
     /// Сессии (бета): свой значок вместо трёх плиток (владелец 13.11.2026).
     /// nil — как было у ролей.
     var leadingIcon: AnyView? = nil
+    /// Сессии: зазор между «Действия» и строкой превью меньше (владелец
+    /// 13.11.2026: «чуть уменьшить интервал»). false — как было у ролей.
+    var tightPreview = false
     @ViewBuilder let row: (RoleChatLiveItem) -> Row
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TFSpacing.sm) {
+        VStack(alignment: .leading, spacing: tightPreview && !isExpanded ? 0 : TFSpacing.sm) {
             Button {
                 withAnimation(TFMotion.animation(TFMotion.standard, reduceMotion: reduceMotion)) { onToggle() }
             } label: {

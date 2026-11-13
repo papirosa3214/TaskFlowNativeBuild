@@ -167,7 +167,8 @@ private struct SessionLiveItemsContent: View {
                                     leadingIcon: isStreaming && identity == identities.last
                                         ? AnyView(SessionDotsGlyph(isAnimating: true)
                                             .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 })
-                                        : AnyView(EmptyView())) { item in
+                                        : AnyView(EmptyView()),
+                                    tightPreview: true) { item in
                         itemView(item)
                     }
                 }

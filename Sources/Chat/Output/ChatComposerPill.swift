@@ -179,9 +179,12 @@ struct ChatComposerPill: View {
             withAnimation(TFMotion.standard) { expanded.toggle() }
         } label: {
             HStack(spacing: TFSpacing.xs) {
-                Image(systemName: "brain")
-                    .symbolEffect(.pulse, options: .repeating)
-                    .accessibilityHidden(true)
+                // В сессиях вместо значка — только словечко (владелец 13.11.2026).
+                if workingWordSeed == nil {
+                    Image(systemName: "brain")
+                        .symbolEffect(.pulse, options: .repeating)
+                        .accessibilityHidden(true)
+                }
                 if let start = workStartedAt {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(compact ? Self.clock(from: start, to: context.date)
