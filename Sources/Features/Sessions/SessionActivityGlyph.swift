@@ -67,13 +67,13 @@ struct SessionActivityGlyph: View {
     /// Ряд маленьких точек; толстая капля справа четыре раза выстреливает
     /// каплю с хвостиком — та бежит влево и у края исчезает, следом стартует
     /// новая; капля справа худеет, потом остаются только точки (владелец
-    /// 13.11.2026, по превью: «наконец-то… точечки пожирнее, хвостик длиннее»).
+    /// 13.11.2026, по превью: «наконец-то… точечки пожирнее, хвостик длиннее», «двигающиеся кляксой» — жирнее бегущие капли).
     private static func blob(_ c: GraphicsContext, _ a: CGSize, _ t: Double, _ s: GraphicsContext.Shading) {
         let count = 7, shots = 4, travel = 0.5, rest = 0.6
         let cycle = Double(shots) * travel + rest
         let local = t.truncatingRemainder(dividingBy: cycle)
         let midY = a.height / 2, x0 = a.width * 0.06, x1 = a.width * 0.94
-        let small = a.width * 0.042, big = a.width * 0.075
+        let small = a.width * 0.03, big = a.width * 0.095
         func dot(_ ctx: GraphicsContext, _ x: CGFloat, _ r: CGFloat) {
             ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: midY - r, width: r * 2, height: r * 2)), with: s)
         }
