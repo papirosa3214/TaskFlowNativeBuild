@@ -264,6 +264,24 @@ enum SessionFeed {
         return nil
     }
 
+    /// Текст без служебного конверта в конце (```json {"schema_version"…}```),
+    /// в том числе недописанного, пока ход идёт. Модель пишет ответ словами и
+    /// следом им же конвертом; на экране — только слова (владелец 13.11.2026:
+    /// сырой JSON в конце ответа).
+    static func strippingEnvelope(_ text: String) -> String {
+        var cut = text.endIndex
+        var search = text.startIndex
+        while let open = text.range(of: "```json", range: search..<text.endIndex) {
+            let after = text[open.upperBound...].drop { $0.isWhitespace }
+            if after.isEmpty || after.hasPrefix("{") && (after.contains("\"schema_version\"") || !after.contains("}")) {
+                cut = open.lowerBound
+                break
+            }
+            search = open.upperBound
+        }
+        return String(text[..<cut]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func stamp(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
     }
