@@ -31,26 +31,36 @@ struct SessionActivityGlyph: View {
 
     /// Три точки меняются местами по окружности (видео владельца, 13.11.2026:
     /// «не прыгают… местами меняются по кругу»): левая пара, правая пара,
-    /// затем крайние вокруг стоящей середины — по полному кругу.
+    /// затем крайние вокруг стоящей середины — по полному кругу. Между точками
+    /// воздух, на ходу — смазанный хвостик (владелец 13.11.2026).
     private static func dots(_ c: GraphicsContext, _ a: CGSize, _ t: Double, _ s: GraphicsContext.Shading) {
+        let r = a.width * 0.1
+        let trail = 8
+        for k in stride(from: trail, through: 0, by: -1) {
+            var layer = c
+            layer.opacity = k == 0 ? 1 : 0.35 * (1 - Double(k) / Double(trail))
+            let rr = r * CGFloat(1 - Double(k) / (Double(trail) * 2.2))
+            for point in dotPositions(a, t - Double(k) * 0.012) {
+                layer.fill(Path(ellipseIn: CGRect(x: point.x - rr, y: point.y - rr, width: rr * 2, height: rr * 2)), with: s)
+            }
+        }
+    }
+
+    private static func dotPositions(_ a: CGSize, _ t: Double) -> [CGPoint] {
         let pairs = [(0, 1), (1, 2), (0, 2)]
         let stepLength = 0.55
         let n = Int(floor(t / stepLength))
         let raw = min(1, (t / stepLength - Double(n)) / 0.8)
         let p = raw < 0.5 ? 4 * raw * raw * raw : 1 - pow(-2 * raw + 2, 3) / 2
-        let r = a.width * 0.1, step = a.width * 0.28, midY = a.height / 2
+        let step = a.width * 0.34, midY = a.height / 2
         func slotX(_ i: Int) -> CGFloat { a.width / 2 + CGFloat(i - 1) * step }
-        let (first, second) = pairs[n % 3]
+        let (first, second) = pairs[((n % 3) + 3) % 3]
         let center = (slotX(first) + slotX(second)) / 2
         let radius = (slotX(second) - slotX(first)) / 2
-        for slot in 0..<3 {
-            var x = slotX(slot), y = midY
-            if slot == first || slot == second {
-                let angle = (slot == first ? Double.pi : 0) + .pi * p
-                x = center + radius * CGFloat(cos(angle))
-                y = midY - radius * CGFloat(sin(angle))
-            }
-            c.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)), with: s)
+        return (0..<3).map { slot in
+            guard slot == first || slot == second else { return CGPoint(x: slotX(slot), y: midY) }
+            let angle = (slot == first ? Double.pi : 0) + .pi * p
+            return CGPoint(x: center + radius * CGFloat(cos(angle)), y: midY - radius * CGFloat(sin(angle)))
         }
     }
 
