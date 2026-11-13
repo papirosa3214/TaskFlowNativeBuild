@@ -59,20 +59,6 @@ public extension APIClient {
         return try await request(.get, "/tasks", query: query)
     }
 
-    /// Список задач с ETag и курсором синхронизации (вариант B трафика
-    /// iOS-клиента, владелец 25.10.2026).
-    ///
-    /// Если список не менялся, сервер отвечает 304 без тела — клиент не
-    /// качает 402 КБ gzip впустую. Курсор (`X-TaskFlow-Sync-Cursor`) нужен
-    /// для дельты: по нему клиент спрашивает «что изменилось с прошлого
-    /// раза» вместо полной перечитки.
-    struct TaskListPage: Sendable {
-        let tasks: [ApiTask]
-        let notModified: Bool
-        let cursor: String?
-        let etag: String?
-    }
-
     /// `projection=list` — лёгкий ответ для списка (29.10.2026, «телефон —
     /// чисто окошко»).
     ///
@@ -82,29 +68,6 @@ public extension APIClient {
     ///
     /// На сервере без проекции (старый) ответ прежний, и клиент считает шаги
     /// по пришедшим подзадачам — так он работает с обоими.
-    func taskList(includeChildren: Bool = false, archived: Bool = false, etag: String? = nil,
-                  projection: TaskListProjection = .list) async throws -> TaskListPage {
-        var query: [URLQueryItem] = []
-        if includeChildren { query.append(URLQueryItem(name: "include_children", value: "true")) }
-        if archived { query.append(URLQueryItem(name: "archived", value: "true")) }
-        if projection == .list { query.append(URLQueryItem(name: "projection", value: "list")) }
-        var headers: [String: String] = [:]
-        if let etag { headers["If-None-Match"] = etag }
-        let (data, http) = try await requestRaw(
-            .get, "/tasks", query: query, acceptedErrorStatuses: [304], headers: headers
-        )
-        let cursor = http.value(forHTTPHeaderField: "X-TaskFlow-Sync-Cursor")
-        let newEtag = http.value(forHTTPHeaderField: "ETag")
-        if http.statusCode == 304 {
-            // Курсор при 304 берём только из заголовка: ETag — это отпечаток
-            // тела, а не метка времени, и подставлять его в курсор нельзя
-            // (сервер поймёт его как мусор и попросит полную перечитку).
-            return TaskListPage(tasks: [], notModified: true, cursor: cursor, etag: newEtag ?? etag)
-        }
-        let tasks = try decode([ApiTask].self, from: data)
-        return TaskListPage(tasks: tasks, notModified: false, cursor: cursor, etag: newEtag)
-    }
-
     /// ДЕЛЬТА: что изменилось с курсора (вариант B трафика iOS-клиента).
     ///
     /// Сервер отдаёт id, а не карточки: изменившиеся клиент дозапрашивает
@@ -265,12 +228,6 @@ public extension APIClient {
     func patchTask(id: String, fields: [String: JSONValue]) async throws -> ApiTask {
         let response: TaskResponse = try await request(.patch, "/tasks/\(id)", body: fields)
         return response.task
-    }
-
-    /// Совместимый вход обычного удаления: теперь всегда архивирует.
-    /// Не использовать DELETE как запасной путь при недоступном архиве.
-    func deleteTask(id: String) async throws {
-        _ = try await archiveTask(id: id)
     }
 
     func archiveTask(id: String) async throws -> ApiTask {

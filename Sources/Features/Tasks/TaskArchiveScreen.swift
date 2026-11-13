@@ -176,10 +176,6 @@ struct TaskArchiveScreen: View {
         }
     }
 
-    private func archiveDate(_ raw: String) -> String {
-        DateFormats.sqliteUTC(raw)?.formatted(date: .abbreviated, time: .shortened) ?? raw
-    }
-
     private func loadArchive() async {
         await closedStore.refresh()
         await projectStore.loadArchive()

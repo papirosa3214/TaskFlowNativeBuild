@@ -73,7 +73,6 @@ struct ChatVoiceComposer: View {
     @State private var player = VoicePlayer()
     @State private var isRecording = false
     @State private var preview: VoiceMessage?
-    @State private var isSendingVoice = false
     @FocusState private var isTextFieldFocused: Bool
     private var textFieldFocus: FocusState<Bool>.Binding { focus ?? $isTextFieldFocused }
     @Namespace private var composerNamespace
@@ -503,8 +502,6 @@ struct ChatVoiceComposer: View {
                     .foregroundStyle(.gray)
                 if transcribing {
                     EmptyView()
-                } else if isSendingVoice {
-                    ProgressView().frame(width: 40, height: 40)
                 } else {
                     Button(action: sendPreview) {
                         Image(systemName: "square.and.pencil")
@@ -620,7 +617,6 @@ struct ChatVoiceComposer: View {
     private func placeTranscriptInDraft(_ words: String, from message: VoiceMessage) {
         guard preview?.id == message.id else { return }
         text = ChatDictationDraft.appending(words, to: text)
-        isSendingVoice = false
         player.stop()
         voice.complete()
         withAnimation(reduceMotion ? .linear(duration: 0.12) : .spring(duration: 0.32, bounce: 0)) {
