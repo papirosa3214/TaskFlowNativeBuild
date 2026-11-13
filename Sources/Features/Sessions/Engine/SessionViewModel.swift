@@ -56,6 +56,10 @@ final class SessionViewModel {
     /// эхом сервера — до него оно «пропадало» (владелец 13.11.2026:
     /// «сообщения вообще не доходят»).
     var pendingOutgoing: String?
+    /// В живом ходе могла остаться дыра: после долгого обрыва сервер прислал
+    /// снимок целиком вместо пропущенных кусков. Тогда по концу хода текст
+    /// берём из снимка, а не оставляем ход с дырой.
+    private var liveTurnHasGaps = false
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
@@ -473,7 +477,10 @@ final class SessionViewModel {
         // Повтор уже принятого куска (после переподключения сервер может
         // прислать его снова) в живой ход не пишем — иначе слова двоятся.
         let isNew = !state.seenCursors.contains(event.cursor)
-        if isNew, event.sessionId == activeSessionID { liveTurn.apply(type: event.type, payload: event.payload) }
+        if isNew, event.sessionId == activeSessionID {
+            if event.type == "agent_start" { liveTurnHasGaps = false }
+            liveTurn.apply(type: event.type, payload: event.payload)
+        }
         SessionReducer.apply(event, to: &state)
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
             Task { await refreshSnapshot() }
@@ -490,6 +497,8 @@ final class SessionViewModel {
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
                 // 13.11.2026: «какие-то слова не допечатываются»).
+                ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired)")
+                if payload.resetRequired, !liveTurn.isEmpty { liveTurnHasGaps = true }
                 if !payload.resetRequired {
                     for event in payload.events where !state.seenCursors.contains(event.cursor) && event.sessionId == sessionID {
                         liveTurn.apply(type: event.type, payload: event.payload)
@@ -539,7 +548,11 @@ final class SessionViewModel {
         // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
         // остаётся на экране как есть, без подмены записями снимка (владелец
         // 13.11.2026: «если он уже напечатался — итоговый ответ не нужен»);
-        // сбрасывается на следующем `agent_start`.
+        // сбрасывается на следующем `agent_start`. Если в ходе дыра — берём снимок.
+        if !snapshot.isStreaming, liveTurnHasGaps {
+            liveTurn.reset()
+            liveTurnHasGaps = false
+        }
         promptMode = snapshot.isStreaming ? .followUp : .prompt
     }
 

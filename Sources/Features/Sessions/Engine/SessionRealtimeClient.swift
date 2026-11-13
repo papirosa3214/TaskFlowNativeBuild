@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import NewChatCore
 import Observation
 
@@ -21,6 +22,14 @@ final class SessionRealtimeClient {
     private var reconnectTask: Task<Void, Never>?
     private var wantsConnection = false
     private var reconnectAttempt = 0
+    /// Сокет уже хоть раз был на связи: любое следующее «connected» —
+    /// переподключение, после которого дотягиваем пропущенные события.
+    /// Раньше смотрели на `reconnectAttempt`, а повторный вход его обнулял —
+    /// и пропущенное не дотягивалось (владелец 13.11.2026: «слова не
+    /// допечатываются»).
+    private var hasConnectedOnce = false
+    private var droppedAt: Date?
+    private var foregroundObserver: NSObjectProtocol?
     private var onEvent: (@MainActor (SessionEventEnvelope) -> Void)?
     private var onReconnect: (@MainActor () async -> Void)?
 
@@ -46,12 +55,31 @@ final class SessionRealtimeClient {
         self.onEvent = onEvent
         self.onReconnect = onReconnect
         wantsConnection = true
+        if foregroundObserver == nil {
+            // Вернулись на экран — переподключаемся сразу, не дожидаясь паузы.
+            foregroundObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in self?.reconnectNowIfNeeded() }
+            }
+        }
         guard socket == nil else { return }
+        openSocket()
+    }
+
+    private func reconnectNowIfNeeded() {
+        guard wantsConnection, connectionState != .connected else { return }
+        ClientLog.shared.add("session.ws foreground:reconnect")
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        closeSocket()
         openSocket()
     }
 
     func disconnect() {
         wantsConnection = false
+        if let foregroundObserver { NotificationCenter.default.removeObserver(foregroundObserver) }
+        foregroundObserver = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         closeSocket()
@@ -117,10 +145,16 @@ final class SessionRealtimeClient {
         guard let frame = RealtimeFrame(data: data) else { return }
         switch frame.type {
         case "connected":
-            let reconnected = reconnectAttempt > 0
+            let reconnected = hasConnectedOnce
+            hasConnectedOnce = true
             reconnectAttempt = 0
             connectionState = .connected
-            if reconnected { await onReconnect?() }
+            if reconnected {
+                let gap = droppedAt.map { String(format: "%.1f", Date().timeIntervalSince($0)) } ?? "?"
+                ClientLog.shared.add("session.ws reconnected gap=\(gap)s")
+                droppedAt = nil
+                await onReconnect?()
+            }
         case "ping":
             try? await socket.send(.string(#"{"type":"pong"}"#))
         case "session:event":
@@ -150,8 +184,11 @@ final class SessionRealtimeClient {
         closeSocket()
         guard wantsConnection else { return }
         connectionState = .disconnected
+        if droppedAt == nil { droppedAt = Date() }
         reconnectAttempt += 1
-        let delay = min(pow(2, Double(reconnectAttempt - 1)), 30)
+        // Первая попытка — сразу: короткий обрыв не должен быть заметен.
+        let delay = reconnectAttempt == 1 ? 0 : min(pow(2, Double(reconnectAttempt - 2)), 30)
+        ClientLog.shared.add("session.ws dropped attempt=\(reconnectAttempt) retryIn=\(delay)s")
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
