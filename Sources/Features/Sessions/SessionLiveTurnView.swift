@@ -219,6 +219,13 @@ private struct SessionLiveItemsContent: View {
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
                                   prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
+            case .step(let step) where SessionOwnerQuestion.question(in: step) != nil:
+                // Вопрос Помощника владельцу — карточкой с вариантами (сервер 4b774d50).
+                // Ответ меняет запись вопроса, ход продолжается с ним.
+                RoleQuestionCard(question: SessionOwnerQuestion.question(in: step)!) { answers, note in
+                    try await APIClient().answerQuestion(questionID: SessionOwnerQuestion.question(in: step)!.id,
+                                                         answers: answers, note: note)
+                }
             case .step(let step) where SessionRoleCall(step) != nil:
                 Button { openStep(step) } label: {
                     SessionRoleCallRow(call: SessionRoleCall(step)!, status: step.status)
@@ -861,5 +868,17 @@ private struct SessionRoleCallRow: View {
         case .error: "не ответила"
         default: "ответила"
         }
+    }
+}
+
+/// Вопрос Помощника владельцу в живом ходе: сервер кладёт карточку в
+/// промежуточный результат инструмента `taskflow_ask_user_question`
+/// (`{"question": …}`), телефон её только показывает.
+enum SessionOwnerQuestion {
+    static func question(in step: RoleChatLiveStep) -> ChatQuestion? {
+        guard step.tool == "taskflow_ask_user_question", step.status == .running,
+              let data = step.output?.data(using: .utf8) else { return nil }
+        struct Wrapper: Decodable { let question: ChatQuestion }
+        return try? JSONDecoder().decode(Wrapper.self, from: data).question
     }
 }
