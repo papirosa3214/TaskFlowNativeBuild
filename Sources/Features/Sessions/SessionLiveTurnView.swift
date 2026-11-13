@@ -142,9 +142,11 @@ private struct SessionLiveItemsContent: View {
 
     var body: some View {
         let visible = detailLevel.visible(items)
-        let segments = RoleLiveSegment.split(visible,
+        // Вызов роли-субагента — отдельной отметкой, а не внутри «Действия»
+        // (владелец 13.11.2026: «понимать, какой вызов сделался»).
+        let segments = SessionRoleCall.separating(RoleLiveSegment.split(visible,
                                              grouping: !ungrouped && detailLevel == .standard,
-                                             groupsSingleAction: showsActionPreview)
+                                             groupsSingleAction: showsActionPreview))
         // Идентичность куска — по содержимому (см. `RoleLiveSegment.identities`):
         // по номеру строки пересоздавались от прихода текста в середину хода.
         let identities = RoleLiveSegment.identities(segments)
@@ -219,6 +221,14 @@ private struct SessionLiveItemsContent: View {
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
                                   prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
+            case .step(let step) where SessionRoleCall(step) != nil:
+                Button { openStep(step) } label: {
+                    SessionRoleCallRow(call: SessionRoleCall(step)!, status: step.status)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Показать ответ роли")
             case .step(let step):
                 let hasDetail = !(step.detail ?? "").isEmpty
                 Button { openStep(step) } label: {
@@ -762,3 +772,96 @@ private func ioSection(_ title: String, _ text: String, id: String) -> some View
 /// выходят из прозрачности и лёгкого размытия. Возраст буквы считается от
 /// времени первого появления; новые слова не меняют возраст старых букв.
 
+
+/// Вызов роли-субагента из сессии (`taskflow_spawn_session` с `role`,
+/// владелец 13.11.2026: «субагенты — это и есть роли»).
+struct SessionRoleCall: Equatable {
+    let roleKey: String
+    let title: String
+    let task: String
+
+    /// Названия ролей — как на сервере (`roleRouting.ts`).
+    static let titles: [String: String] = [
+        "researcher": "Исследователь", "analyst": "Аналитик", "critic_verifier": "Критик-проверяющий",
+        "architect": "Архитектор", "builder": "Разработчик", "qa": "Лайф-тестировщик", "designer": "Дизайнер",
+    ]
+
+    init?(_ step: RoleChatLiveStep) {
+        guard step.tool == "taskflow_spawn_session",
+              let data = step.args?.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let role = (object["role"] as? String)?.trimmingCharacters(in: .whitespaces), !role.isEmpty else { return nil }
+        roleKey = role
+        title = Self.titles[role] ?? role
+        task = (object["task"] as? String) ?? ""
+    }
+
+    /// Вызовы ролей выходят из полосы «Действия» отдельными строками.
+    static func separating(_ segments: [RoleLiveSegment]) -> [RoleLiveSegment] {
+        var out: [RoleLiveSegment] = []
+        for segment in segments {
+            guard case .actions(let group) = segment,
+                  group.contains(where: { if case .step(let s) = $0 { return SessionRoleCall(s) != nil } else { return false } }) else {
+                out.append(segment)
+                continue
+            }
+            var run: [RoleChatLiveItem] = []
+            func flush() {
+                if run.count > 1 { out.append(.actions(run)) } else if let one = run.first { out.append(.single(one)) }
+                run = []
+            }
+            for item in group {
+                if case .step(let s) = item, SessionRoleCall(s) != nil {
+                    flush()
+                    out.append(.single(item))
+                } else {
+                    run.append(item)
+                }
+            }
+            flush()
+        }
+        return out
+    }
+
+    /// Работающие роли — в пилюлю над полем ввода, как в чатах ролей.
+    static func running(in items: [RoleChatLiveItem]) -> [ChatComposerStatus.Running] {
+        items.compactMap { item in
+            guard case .step(let step) = item, step.status == .running, let call = SessionRoleCall(step) else { return nil }
+            return ChatComposerStatus.Running(chatID: step.id, roleID: call.roleKey, name: call.title,
+                                              title: call.task, state: .working)
+        }
+    }
+}
+
+/// Отметка вызова роли в ленте: «→ Исследователь», поручение одной строкой,
+/// идёт или готово.
+private struct SessionRoleCallRow: View {
+    let call: SessionRoleCall
+    let status: RoleChatLiveStep.Status
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
+            Image(systemName: "arrow.turn.down.right")
+                .tfTypeFont(size: 12, weight: .medium)
+                .foregroundStyle(Color.tfDim)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: TFSpacing.xs) {
+                    Text(call.title).tfText(.meta).foregroundStyle(Color.tfText)
+                    Text(statusText).tfText(.caption).foregroundStyle(Color.tfDim)
+                }
+                if !call.task.isEmpty {
+                    Text(call.task).tfText(.caption).foregroundStyle(Color.tfSub).lineLimit(2)
+                }
+            }
+        }
+    }
+
+    private var statusText: String {
+        switch status {
+        case .running: "работает"
+        case .error: "не ответила"
+        default: "ответила"
+        }
+    }
+}

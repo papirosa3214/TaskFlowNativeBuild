@@ -33,6 +33,15 @@ struct ChatComposerStatus: Decodable, Sendable, Equatable {
             case name, title, state
         }
 
+        /// Свой список работающих — у сессий (роли-субагенты, 13.11.2026).
+        init(chatID: String, roleID: String?, name: String, title: String?, state: State) {
+            self.chatID = chatID
+            self.roleID = roleID
+            self.name = name
+            self.title = title
+            self.state = state
+        }
+
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             chatID = try c.decode(String.self, forKey: .chatID)

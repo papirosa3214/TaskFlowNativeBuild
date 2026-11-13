@@ -133,7 +133,8 @@ struct OwnerSessionScreen: View {
             // статусная пилюля над полем ввода и само поле.
             VStack(spacing: 0) {
                 ChatComposerPill(
-                    plans: [], members: [], status: .empty,
+                    // Работающие роли-субагенты — в пилюле, как в чатах ролей.
+                    plans: [], members: [], status: ChatComposerStatus(running: SessionRoleCall.running(in: model.liveTurn.items)),
                     onDeletePlan: { _ in }, onOpenChat: { _ in },
                     onSendNow: { _ in }, onRemove: { _ in },
                     onStop: model.isStreaming ? { Task { await model.abort() } } : nil,
