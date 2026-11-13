@@ -61,6 +61,73 @@ public struct RoleChatLiveStep: Equatable {
         self.resultReceived = resultReceived ?? (status != .running)
     }
 }
+
+public struct RoleTurnUsage: Equatable {
+    public let input: Int
+    public let output: Int
+    public let cacheRead: Int
+    public let cacheWrite: Int
+    public let costUSD: Double?
+    public let generationMs: Int?
+    public let model: String?
+    public let context: Int?
+    public let calls: Int?
+    public init(input: Int, output: Int, cacheRead: Int, cacheWrite: Int,
+                costUSD: Double? = nil, generationMs: Int? = nil, model: String? = nil,
+                context: Int? = nil, calls: Int? = nil) {
+        self.input = input; self.output = output
+        self.cacheRead = cacheRead; self.cacheWrite = cacheWrite
+        self.costUSD = costUSD; self.generationMs = generationMs
+        self.model = model; self.context = context; self.calls = calls
+    }
+}
+
+public enum ChatMessageInterruption: Equatable {
+    case ownerInterrupt
+    case failed
+    case other(String)
+    case unknown
+}
+
+// Копии блоков ответа: настоящие живут в файле с виджетами и реестром.
+public enum ChatServerBlock: Decodable, Equatable {
+    case doc(JSONValue, chars: Int)
+
+    public init(from decoder: Decoder) throws {
+        self = .doc(.null, chars: 0)
+    }
+
+    static func list(fromFoundation value: Any?) -> [ChatServerBlock]? { nil }
+}
+
+public struct ChatLiveBlock: Decodable, Equatable {
+    public let block: ChatServerBlock
+    public let source: String
+
+    public init(block: ChatServerBlock, source: String) {
+        self.block = block; self.source = source
+    }
+}
+
+public final class ChatLiveBlockRegistry: @unchecked Sendable {
+    public static let shared = ChatLiveBlockRegistry()
+    private var stored: [String: [ChatLiveBlock]] = [:]
+    public func register(_ blocks: [ChatLiveBlock], for text: String) { stored[text] = blocks }
+    public func blocks(for text: String) -> [ChatLiveBlock]? { stored[text] }
+}
+
+extension JSONValue {
+    var foundationValue: Any {
+        switch self {
+        case .string(let value): return value
+        case .number(let value): return value
+        case .bool(let value): return value
+        case .object(let value): return value.mapValues(\.foundationValue)
+        case .array(let value): return value.map(\.foundationValue)
+        case .null: return NSNull()
+        }
+    }
+}
 '''
 
 with tempfile.TemporaryDirectory(prefix='session-live-turn-') as tmp:

@@ -159,6 +159,13 @@ enum SessionFeedRow: Identifiable, Equatable {
     }
 }
 
+/// Почему ответ не дописан: у Pi причина лежит в `stopReason` сообщения.
+struct SessionStop: Equatable {
+    let interruption: ChatMessageInterruption
+    /// Текст сохранён недописанным — показываем как частичный.
+    let isPartial: Bool
+}
+
 enum SessionFeed {
     /// Записи снимка → строки ленты. Шаги ищут свой ответ по `toolCallId`.
     static func rows(entries: [SessionJSON]) -> [SessionFeedRow] {
@@ -233,6 +240,10 @@ enum SessionFeed {
                                 tool: value["name"]?.sessionString ?? "tool",
                                 detail: detail(arguments), status: .done)
                             step.args = pretty(arguments)
+                            // Сервер говорит, что тела есть, а сами тела не прислал:
+                            // шаг достанет их у загрузчика, когда владелец раскроет.
+                            step.hasArgs = value["has_args"]?.sessionBool ?? false
+                            step.hasOutput = value["has_output"]?.sessionBool ?? false
                             work.append(.step(step))
                         case "text":
                             replyText += value["text"]?.sessionString ?? ""
@@ -253,8 +264,107 @@ enum SessionFeed {
         return rows
     }
 
-    // MARK: Разбор вызова и ответа инструмента
+    // MARK: Расход, прерывание, тело шага
 
+    /// Сообщение записи: у Pi оно в `message`, у старого снимка — в корне.
+    static func messageObject(_ entry: SessionJSON?) -> [String: SessionJSON]? {
+        guard case .object(let object)? = entry else { return nil }
+        if case .object(let inner)? = object["message"] { return inner }
+        return object
+    }
+
+    /// Расход хода (владелец 13.11.2026: «токены вот эти надо»). Pi кладёт его
+    /// в `message.usage` своими ключами (`cacheRead`, `cacheWrite`,
+    /// `cost.total`), сервер роли — теми же, что `RoleTurnUsage` ждёт
+    /// (`cache_read`, `cost_usd`): читаем оба набора. Времени генерации Pi не
+    /// пишет, поэтому токена в секунду не будет — его не выдумываем.
+    static func usage(_ entry: SessionJSON?) -> RoleTurnUsage? {
+        guard let message = messageObject(entry),
+              case .object(let raw)? = message["usage"] else { return nil }
+        func number(_ keys: String...) -> Double? {
+            for key in keys {
+                if case .number(let value)? = raw[key] { return value }
+                if let text = raw[key]?.sessionString, let value = Double(text) { return value }
+            }
+            return nil
+        }
+        let input = Int(number("input", "input_tokens") ?? 0)
+        let output = Int(number("output", "output_tokens") ?? 0)
+        guard input > 0 || output > 0 else { return nil }
+        var cost: Double?
+        if case .object(let money)? = raw["cost"], case .number(let total)? = money["total"] {
+            cost = total
+        }
+        if cost == nil { cost = number("cost_usd", "costUSD") }
+        return RoleTurnUsage(input: input, output: output,
+                             cacheRead: Int(number("cacheRead", "cache_read") ?? 0),
+                             cacheWrite: Int(number("cacheWrite", "cache_write") ?? 0),
+                             costUSD: cost,
+                             generationMs: nil,
+                             model: message["model"]?.sessionString,
+                             context: nil,
+                             calls: nil)
+    }
+
+    /// Прерывание ответа: `aborted` — владелец нажал «стоп», `error` — ход
+    /// упал, `length` — упёрлись в предел контекста. Обычный конец (`stop`,
+    /// `toolUse`) прерыванием не считается — значка нет.
+    static func stop(_ entry: SessionJSON?) -> SessionStop? {
+        guard let message = messageObject(entry) else { return nil }
+        let reasons = [message["stopReason"], message["stop_reason"], message["rawStopReason"]]
+            .compactMap { $0?.sessionString }
+        for reason in reasons {
+            switch reason {
+            case "aborted", "owner_interrupt":
+                return SessionStop(interruption: .ownerInterrupt, isPartial: true)
+            case "error", "failed":
+                return SessionStop(interruption: .failed, isPartial: false)
+            case "length", "max_tokens":
+                return SessionStop(interruption: .other(reason), isPartial: true)
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    /// Тело шага по его id из записей снимка: вызов и ответ инструмента.
+    /// Нужно, когда снимок пришёл без тел (только флаги `has_args` и
+    /// `has_output`): шторка шага спрашивает тело в момент раскрытия.
+    static func stepBody(_ stepID: String, in entries: [SessionJSON]) -> RoleChatLiveStep? {
+        var tool = "tool"
+        var arguments: SessionJSON?
+        var found = false
+        var answer: String?
+        var failed = false
+        for entry in entries {
+            guard let message = messageObject(entry) else { continue }
+            let role = message["role"]?.sessionString
+            if role == "toolResult" {
+                guard message["toolCallId"]?.sessionString == stepID else { continue }
+                failed = message["isError"]?.sessionBool ?? false
+                answer = resultText(.object(message))
+                continue
+            }
+            guard role == "assistant", case .array(let parts)? = message["content"] else { continue }
+            for part in parts {
+                guard case .object(let value) = part,
+                      value["id"]?.sessionString == stepID,
+                      ["toolCall", "tool_use"].contains(value["type"]?.sessionString ?? "") else { continue }
+                tool = value["name"]?.sessionString ?? "tool"
+                arguments = value["arguments"] ?? value["input"]
+                found = true
+            }
+        }
+        guard found || answer != nil else { return nil }
+        var step = RoleChatLiveStep(id: stepID, tool: tool, detail: detail(arguments),
+                                    status: failed ? .error : .done)
+        step.args = pretty(arguments)
+        step.output = answer
+        return step
+    }
+
+    // MARK: Разбор вызова и ответа инструмента
     /// Короткая подпись шага: команда, путь, запрос — как у шага роли.
     static func detail(_ args: SessionJSON?) -> String? {
         guard case .object(let object)? = args else { return args?.sessionString }

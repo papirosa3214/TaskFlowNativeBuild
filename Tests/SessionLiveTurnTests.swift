@@ -127,6 +127,131 @@ final class SessionLiveTurnTests: XCTestCase {
         XCTAssertNil(SessionFeed.envelope(in: "Просто текст с ```json\n{\"a\":1}\n``` без конверта"))
     }
 
+    // MARK: - Расход, прерывание и тело шага в истории
+
+    /// Токены, кэш и цена: Pi пишет расход в `message.usage` своими ключами
+    /// (`cacheRead`, `cost.total`) — показываем тем же `RoleTurnUsage`.
+    @objc func testUsageReadsPiKeys() {
+        let entry: JSONValue = obj([
+            "id": .string("e1"),
+            "message": obj([
+                "role": .string("assistant"),
+                "model": .string("claude-sonnet-4-5"),
+                "content": .array([obj(["type": .string("text"), "text": .string("Готово")])]),
+                "usage": obj([
+                    "input": .number(10950), "output": .number(144),
+                    "cacheRead": .number(8000), "cacheWrite": .number(1200),
+                    "cost": obj(["total": .number(0.042)]),
+                ]),
+                "stopReason": .string("stop"),
+            ]),
+        ])
+        guard let usage = SessionFeed.usage(entry) else { return XCTFail("нет расхода") }
+        XCTAssertEqual(usage.input, 10950)
+        XCTAssertEqual(usage.output, 144)
+        XCTAssertEqual(usage.cacheRead, 8000)
+        XCTAssertEqual(usage.cacheWrite, 1200)
+        XCTAssertEqual(usage.model, "claude-sonnet-4-5")
+        XCTAssertEqual(usage.costUSD ?? 0, 0.042, accuracy: 0.0001)
+        XCTAssertNil(usage.generationMs, "время генерации Pi не пишет — ток/с не выдумываем")
+    }
+
+    /// Старый снимок с сервера роли: подчёркивания и `cost_usd`.
+    @objc func testUsageReadsServerKeys() {
+        let entry: JSONValue = obj([
+            "usage": obj([
+                "input": .number(100), "output": .number(20),
+                "cache_read": .number(10), "cache_write": .number(5),
+                "cost_usd": .number(0.5),
+            ]),
+        ])
+        guard let usage = SessionFeed.usage(entry) else { return XCTFail("нет расхода") }
+        XCTAssertEqual(usage.cacheRead, 10)
+        XCTAssertEqual(usage.cacheWrite, 5)
+        XCTAssertEqual(usage.costUSD ?? 0, 0.5, accuracy: 0.0001)
+    }
+
+    /// Пустой расход и запись без `message` — строки расхода нет.
+    @objc func testNoUsageNoRow() {
+        XCTAssertNil(SessionFeed.usage(nil))
+        XCTAssertNil(SessionFeed.usage(obj(["message": obj(["role": .string("user")])])))
+        XCTAssertNil(SessionFeed.usage(obj(["message": obj([
+            "usage": obj(["input": .number(0), "output": .number(0)]),
+        ])])), "нулевой расход не показываем")
+    }
+
+    /// «Стоп» владельца в Pi — `stopReason: aborted`, текст сохранён частично.
+    @objc func testStopAbortedIsOwnerInterrupt() {
+        let stop = SessionFeed.stop(obj(["message": obj(["stopReason": .string("aborted")])]))
+        XCTAssertEqual(stop?.interruption, .ownerInterrupt)
+        XCTAssertEqual(stop?.isPartial, true)
+    }
+
+    /// Упавший ход — `stopReason: error`.
+    @objc func testStopErrorIsFailure() {
+        let stop = SessionFeed.stop(obj(["message": obj(["stopReason": .string("error")])]))
+        XCTAssertEqual(stop?.interruption, .failed)
+        XCTAssertEqual(stop?.isPartial, false)
+    }
+
+    /// Обычный конец ответа прерыванием не считается — значка нет.
+    @objc func testNormalStopIsNotInterruption() {
+        XCTAssertNil(SessionFeed.stop(obj(["message": obj(["stopReason": .string("stop")])])))
+        XCTAssertNil(SessionFeed.stop(obj(["message": obj(["stopReason": .string("toolUse")])])))
+        XCTAssertNil(SessionFeed.stop(obj(["message": obj(["role": .string("user")])])))
+        XCTAssertNil(SessionFeed.stop(nil))
+    }
+
+    /// Тело шага достаётся повторным чтением снимка: вызов по id и его ответ.
+    @objc func testStepBodyFromSnapshot() {
+        let entries: [JSONValue] = [
+            obj(["id": .string("a1"), "message": obj([
+                "role": .string("assistant"),
+                "content": .array([obj([
+                    "type": .string("toolCall"), "id": .string("c1"), "name": .string("bash"),
+                    "arguments": obj(["command": .string("ls -la")]),
+                ])]),
+            ])]),
+            obj(["id": .string("a2"), "message": obj([
+                "role": .string("toolResult"), "toolCallId": .string("c1"),
+                "content": .array([obj(["type": .string("text"), "text": .string("out")])]),
+            ])]),
+        ]
+        guard let step = SessionFeed.stepBody("c1", in: entries) else { return XCTFail("тела нет") }
+        XCTAssertEqual(step.id, "c1")
+        XCTAssertEqual(step.tool, "bash")
+        XCTAssertEqual(step.detail, "ls -la")
+        XCTAssertTrue(step.args?.contains("ls -la") == true)
+        XCTAssertEqual(step.output, "out")
+        XCTAssertEqual(step.status, .done)
+    }
+
+    /// Шага с таким id нет — загрузчик молчит, шторка откроется как есть.
+    @objc func testStepBodyMissingIsNil() {
+        XCTAssertNil(SessionFeed.stepBody("нет-такого", in: [
+            obj(["message": obj(["role": .string("user"), "content": .string("привет")])]),
+        ]))
+    }
+
+    /// В истории сервер говорит, что тела есть, но не присылает их — шаг
+    /// помечается флагом, и лента спрашивает тело у загрузчика.
+    @objc func testHistoryKeepsBodiesFlag() {
+        let entries: [JSONValue] = [
+            obj(["id": .string("a1"), "message": obj([
+                "role": .string("assistant"),
+                "content": .array([obj([
+                    "type": .string("toolCall"), "id": .string("c1"), "name": .string("bash"),
+                    "has_args": .bool(true), "has_output": .bool(true),
+                ])]),
+            ])]),
+        ]
+        guard case .work(_, let items)? = SessionFeed.rows(entries: entries).first,
+              case .step(let step)? = items.first else { return XCTFail("нет шага") }
+        XCTAssertNil(step.args, "тело не пришло — за него отвечает загрузчик")
+        XCTAssertTrue(step.hasArgs)
+        XCTAssertTrue(step.hasOutput)
+    }
+
     @objc func testVoiceLinesStayMessages() {
         let entries: [JSONValue] = [
             obj(["id": .string("v1"), "type": .string("custom_message"), "customType": .string("taskflow.voice"),

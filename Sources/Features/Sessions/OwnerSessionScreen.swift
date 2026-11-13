@@ -58,9 +58,33 @@ struct OwnerSessionScreen: View {
     @State private var scrollTarget: String?
     @State private var isRenaming = false
     @State private var renameText = ""
+    /// Сообщение, открытое в шторке «Выделить текст».
+    @State private var selectingText: SelectableMessageText?
     /// Раскрытые полосы «Действия» и шаги — переживают пересборку строк.
     @StateObject private var feedExpansion = RoleFeedExpansion()
 
+    /// Тело шага по его id: в истории тела бывают только флагами, а шторка
+    /// шага спрашивает их в момент раскрытия (как в комнате роли).
+    private var stepBodyLoader: ((String) async -> RoleChatLiveStep?)? {
+        guard let id = model.activeSessionID else { return nil }
+        let api = SessionAPIClient()
+        return { stepID in
+            guard let response = try? await api.snapshot(sessionID: id) else { return nil }
+            return SessionFeed.stepBody(stepID, in: response.session.entries)
+        }
+    }
+
+    /// «Ответить» на сообщение. Связи с сообщением у `prompt` нет, поэтому
+    /// цитата идёт текстом в поле ввода — владелец её видит и правит до
+    /// отправки, а не получает невидимую ссылку.
+    private func insertQuote(_ text: String) {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).prefix(3)
+        let quote = lines.map { "> " + $0 }.joined(separator: "\n")
+        model.composerText = model.composerText.isEmpty
+            ? quote + "\n\n"
+            : quote + "\n\n" + model.composerText
+        composerFocused = true
+    }
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -69,7 +93,10 @@ struct OwnerSessionScreen: View {
                     // шаги — полосой «Действия», ответ — разметкой сервера
                     // (владелец 12.11.2026: «вернуть живой ход… инструменты, DIF»).
                     ForEach(model.displayRows) { row in
-                        OwnerSessionRowView(row: row, expansion: feedExpansion)
+                        OwnerSessionRowView(row: row,
+                                            stepDetailLoader: stepBodyLoader,
+                                            onReply: insertQuote,
+                                            onSelectText: { selectingText = SelectableMessageText(text: $0) })
                             .id(row.id)
                     }
                     if !model.liveTurn.isEmpty {
@@ -216,6 +243,11 @@ struct OwnerSessionScreen: View {
                         .accessibilityIdentifier("session.menu")
                 }
             }
+        }
+        .tfSheet(item: $selectingText) { item in
+            // «Выделить текст» (владелец 20.10.2026, перенесено в сессии
+            // 13.11.2026): в ленте SwiftUI даёт только «скопировать всё».
+            SelectableTextSheet(text: item.text)
         }
         .tfSheet(isPresented: $isContentsPresented) {
             RoleChatContentsSheet(entries: model.timeline
@@ -433,7 +465,12 @@ struct OwnerSessionScreen: View {
 /// же полосой «Действия» и шторкой шага, что в комнате.
 private struct OwnerSessionRowView: View {
     let row: SessionFeedRow
-    let expansion: RoleFeedExpansion
+    /// Тело шага по id — когда снимок пришёл без тел.
+    var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
+    /// «Ответить»: цитата уходит в поле ввода.
+    var onReply: (String) -> Void = { _ in }
+    /// «Выделить текст»: сообщение открывается в системном текстовом поле.
+    var onSelectText: (String) -> Void = { _ in }
 
     var body: some View {
         switch row {
@@ -450,11 +487,44 @@ private struct OwnerSessionRowView: View {
                             .fill(Color.tfFieldDark)
                     )
             }
-        case .work(let id, let items):
-            SessionLiveItemsList(items: items, showsActionPreview: true,
-                              expansionRow: id, expansion: expansion)
+            .messageActions(text, onReply: onReply, onSelectText: onSelectText)
+        case .work(_, let items):
+            // Работа хода — свёрнутой полосой, как в комнате роли (владелец
+            // 10.11.2026: «как в T3 — работа свёрнута полосой»): раскрытие в
+            // ленте растягивало строку и теряло состояние при пересборке.
+            WorkActionsBar(items: items, stepDetailLoader: stepDetailLoader)
         case .reply(_, let text, let blocks):
-            OwnerSessionReply(text: text, isStreaming: false, entry: blocks)
+            VStack(alignment: .leading, spacing: TFSpacing.sm) {
+                // Прерванный ответ не должен выглядеть завершённым.
+                if let stop = SessionFeed.stop(blocks) {
+                    ChatInterruptionBadge(interruption: stop.interruption, isPartial: stop.isPartial)
+                }
+                OwnerSessionReply(text: text, isStreaming: false, entry: blocks)
+                // Расход хода: токены, кэш, цена (владелец 13.11.2026).
+                if let usage = SessionFeed.usage(blocks) {
+                    RoleTurnUsageRow(usage: usage)
+                }
+            }
+            .messageActions(text, onReply: onReply, onSelectText: onSelectText)
+        }
+    }
+}
+
+private extension View {
+    /// Меню сообщения сессии — те же три пункта, что в комнате роли:
+    /// «Ответить», «Скопировать текст», «Выделить текст».
+    func messageActions(_ text: String,
+                        onReply: @escaping (String) -> Void,
+                        onSelectText: @escaping (String) -> Void) -> some View {
+        contextMenu {
+            if !text.isEmpty {
+                Button { onReply(text) } label: { Label("Ответить", systemImage: "arrowshape.turn.up.left") }
+                    .accessibilityIdentifier("session.replyAction")
+                Button { UIPasteboard.general.string = text } label: { Label("Скопировать текст", systemImage: "doc.on.doc") }
+                    .accessibilityIdentifier("session.copyAction")
+                Button { onSelectText(text) } label: { Label("Выделить текст", systemImage: "text.cursor") }
+                    .accessibilityIdentifier("session.selectTextAction")
+            }
         }
     }
 }

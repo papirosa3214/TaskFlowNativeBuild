@@ -13,11 +13,25 @@ struct RoleWorkBar: View {
     var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
 
     @State private var presented = false
-    @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     private var items: [RoleChatLiveItem] {
         message.steps?.itemsWithoutAnswerText(of: message) ?? []
     }
+
+    var body: some View {
+        WorkActionsBar(items: items, stepDetailLoader: stepDetailLoader)
+    }
+}
+
+/// Полоса «Действия» готовая к нажатию: свёрнутая работа хода, которая
+/// открывается окном. Одна на комнату роли и на сессию владельца — у обоих
+/// ход собран из одних и тех же `RoleChatLiveItem`.
+struct WorkActionsBar: View {
+    let items: [RoleChatLiveItem]
+    /// Тело шага по id — грузится, когда шаг раскрыли внутри окна.
+    var stepDetailLoader: ((String) async -> RoleChatLiveStep?)?
+
+    @State private var presented = false
 
     private var stepCount: Int {
         items.filter(\.isStep).count
