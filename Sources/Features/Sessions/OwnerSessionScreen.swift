@@ -37,6 +37,10 @@ struct OwnerSessionScreen: View {
     /// Лента у низа — иначе у пилюли кружок «вниз», как в комнате чата.
     @State private var isNearBottom = true
     @State private var scrollDownTick = 0
+    /// Положение ленты: кнопка «вниз» едет к нижнему краю, а не к метке —
+    /// в ленивой ленте метки внизу ещё нет, когда владелец далеко от низа,
+    /// и кнопка не прожималась (владелец 13.11.2026).
+    @State private var feedPosition = ScrollPosition(edge: .bottom)
     /// Замер контекста сессии для кольца в поле ввода (как в комнате).
     @State private var context: ChatContextSnapshot?
     @Environment(\.dismiss) private var dismiss
@@ -112,6 +116,7 @@ struct OwnerSessionScreen: View {
                 .padding(.vertical, TFSpacing.md)
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
+            .scrollPosition($feedPosition)
             // Боковой ползунок прокрутки владельцу мешает (12.11.2026).
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
@@ -125,8 +130,7 @@ struct OwnerSessionScreen: View {
             // (как лента комнаты: уехал читать выше — не дёргаем).
             .onChange(of: model.liveTurn) { _, _ in if isNearBottom { scrollToEnd(proxy) } }
             .onChange(of: scrollDownTick) { _, _ in
-                guard let target = bottomTargetID else { return }
-                withAnimation(TFMotion.standard) { proxy.scrollTo(target, anchor: .bottom) }
+                withAnimation(TFMotion.standard) { feedPosition.scrollTo(edge: .bottom) }
             }
             .onChange(of: scrollTarget) { _, target in
                 guard let target else { return }
