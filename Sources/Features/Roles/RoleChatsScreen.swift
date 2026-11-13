@@ -352,6 +352,7 @@ struct RoleChatsScreen: View {
             // (владелец 12.11.2026: «липкий подзаголовок»).
             LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
               Section {
+               // Зазор до первой сессии от полоски проектов (владелец 13.11.2026).
                Group {
                 if isSearchMode {
                     searchResults
@@ -405,6 +406,7 @@ struct RoleChatsScreen: View {
                            .onTapGesture { withAnimation(TFMotion.standard) { folderEditing = false } }
                    }
                }
+               .padding(.top, ChatStoriesLayout.listTopGap)
               } header: {
                 if openedScope == nil, isOwner, isHome, !projects.isEmpty, !isSearchMode {
                     ChatsFolderBar(projects: projects, selected: $folderID, actions: folderActions,
@@ -444,7 +446,22 @@ struct RoleChatsScreen: View {
         .scrollPosition($storiesScroll)
         .scrollTargetBehavior(ChatStoriesSnap(rowHeight: storiesActive ? ChatStoriesLayout.rowHeight : 0,
                                               limit: storiesActive && storiesFiller > 0
-                                                  ? ChatStoriesLayout.rowHeight + ChatStoriesLayout.searchHeight : nil))
+                                                  ? ChatStoriesLayout.rowHeight + ChatStoriesLayout.searchHeight : nil,
+                                              motion: storiesMotion))
+        // Упругость (владелец 13.11.2026): флик не утаскивает ряд ролей и
+        // полоску проектов. При начале жеста гасим прошлую отметку, при
+        // отпускании запоминаем, был ли ряд ещё раскрыт, — по ней
+        // `ChatStoriesSnap` отбивает ленту назад вместо схлопывания.
+        .onScrollPhaseChange { _, phase in
+            switch phase {
+            case .interacting:
+                storiesMotion.releasedExpanded = false
+            case .decelerating:
+                storiesMotion.releasedExpanded = storiesMotion.progress >= 0.5
+            default:
+                break
+            }
+        }
         .onScrollGeometryChange(for: ChatStoriesGeometry.self) { geo in
             ChatStoriesGeometry(offset: geo.contentOffset.y + geo.contentInsets.top,
                                 topInset: geo.contentInsets.top,

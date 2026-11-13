@@ -76,6 +76,9 @@ enum ChatStoriesLayout {
     /// Поле поиска с отступом под ним.
     static let fieldHeight: CGFloat = 40
     static let searchHeight: CGFloat = fieldHeight + TFSpacing.xs
+    /// Зазор от полоски проектов до первой сессии (владелец 13.11.2026:
+    /// «первые сессии чуть-чуть пониже, где-то на 10 пунктов»).
+    static let listTopGap: CGFloat = 10
 
     /// Центр кружка `index` в раскрытом ряду, по горизонтали.
     static func rowCenterX(_ index: Int) -> CGFloat {
@@ -95,6 +98,10 @@ final class ChatStoriesMotion {
     @ObservationIgnored var placed = false
     /// Наибольшая виденная высота ленты: из неё считается нижний отступ.
     @ObservationIgnored var fullHeight: CGFloat = 0
+    /// Ряд был виден больше чем наполовину в момент отпускания пальца.
+    /// Флик тогда не утаскивает ряд — он отбивается назад (владелец 13.11.2026).
+    /// Не наблюдается: пишется на каждом жесте, перерисовка вида не нужна.
+    @ObservationIgnored var releasedExpanded = false
 
     /// 0 — кружки в стопке, 1 — в ряду.
     var progress: CGFloat {
@@ -114,16 +121,17 @@ struct ChatStoriesSnap: ScrollTargetBehavior {
     /// список возвращается к ней (владелец 12.11.2026: «не должен заезжать за
     /// эту панельку»). `nil` — список длинный, прокручивается как обычно.
     var limit: CGFloat? = nil
+    /// Где сейчас лента: из неё берётся, был ли ряд раскрыт в момент
+    /// отпускания пальца. Тогда флик ряд не утаскивает.
+    var motion: ChatStoriesMotion? = nil
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
         let y = target.rect.minY
-        if let limit, y > limit {
-            target.rect.origin.y = limit
-        } else if rowHeight > 0, y > 0, y < rowHeight {
-            target.rect.origin.y = y < rowHeight / 2 ? 0 : rowHeight
-        } else if y > rowHeight, y < rowHeight + searchHeight {
-            target.rect.origin.y = y < rowHeight + searchHeight / 2 ? rowHeight : rowHeight + searchHeight
-        }
+        let policy = ChatStoriesScrollPolicy(rowHeight: rowHeight,
+                                             searchHeight: searchHeight,
+                                             limit: limit)
+        target.rect.origin.y = policy.target(offset: y,
+                                             wasExpanded: motion?.releasedExpanded ?? false)
     }
 }
 
@@ -562,7 +570,11 @@ struct ChatsFolderBar: View {
         return Text(title)
             .font(TFTypeFace.saved(for: .app, group: group.rawValue).font(size: group.size, weight: .semibold))
             // Выбранный — красный, как вкладка нижней панели (владелец 12.11.2026).
-            .foregroundStyle(isOn ? Color.tfRed : Color.tfSub)
+            // Невыбранные — тон текста из «Настройки → Шрифт», а не фиксированный
+            // серый: цвет регулируется в настройках вместе со шрифтом
+            // (владелец 13.11.2026: «в проектах наверху серый бледный, надо
+            // выровнять»).
+            .foregroundStyle(isOn ? Color.tfRed : Color.tfText)
             .lineLimit(1)
             .padding(.horizontal, TFSpacing.md)
             .frame(minHeight: 34)
