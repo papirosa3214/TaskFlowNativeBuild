@@ -213,13 +213,18 @@ private struct SessionLiveItemsContent: View {
                 // Идущий ответ встаёт целыми блоками (абзацами): хвост,
                 // который ещё пишется, не показывается до конца абзаца
                 // (владелец 11.11.2026, вместо пейсера по буквам).
-                let text = isStreaming && item == items.last ? RoleLiveBlocks.settled(rawText) : rawText
+                // Тонкий клиент (владелец 13.11.2026): текст хода — ровно тот, что
+                // разметил сервер, и рисуется его разметкой целиком (все блоки:
+                // текст, таблицы, виджеты). Поиск «одного блока по началу текста»
+                // ломался на ответах из нескольких блоков и давал «Не удалось
+                // получить подготовленное содержимое».
+                let text = rawText
                 // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
                 // рефакторинг 07.11 выкинул `display`, и кнопка переключала
                 // только флаг). Готовые куски — переводом, остальное — как есть.
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  prepared: shown == text ? ChatRichContent.liveSegments(shown: text) : nil)
+                                  serverBlocks: shown == text ? ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block) : nil)
             case .step(let step) where SessionOwnerQuestion.question(in: step) != nil:
                 // Вопрос Помощника владельцу — карточкой с вариантами (сервер 4b774d50).
                 // Ответ меняет запись вопроса, ход продолжается с ним.

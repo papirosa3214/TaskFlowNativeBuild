@@ -79,12 +79,16 @@ struct SessionLiveTurn: Equatable {
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
             closeThinking(at: stamp)
             let server = payload["text"]?.sessionString
-            if case .text(let text)? = items.last {
-                let full = server ?? text + delta
+            if case .text? = items.last {
+                // Кусок без разметки сервера не дописываем — текст должен
+                // совпадать с размеченным (хвост придёт в message_end).
+                guard let server else { return }
+                let full = server
                 items[items.count - 1] = .text(full)
                 Self.register(payload["blocks"], for: full)
             } else {
-                let full = server ?? delta
+                guard let server else { return }
+                let full = server
                 items.append(.text(full))
                 Self.register(payload["blocks"], for: full)
             }
