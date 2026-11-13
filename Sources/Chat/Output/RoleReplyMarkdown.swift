@@ -42,7 +42,9 @@ struct RoleReplyMarkdown: View, Equatable {
         } else if segments.isEmpty {
             if !text.isEmpty {
                 if plainFallback {
-                    Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
+                    // Свой разбор Markdown с ярлычками ссылок и файлов
+                    // (владелец 13.11.2026: в живом ходе сессии пропали ярлычки).
+                    StructuredDocumentBlocksView(blocks: MarkdownDocumentAdapter.blocks(from: text), chatGroup: textGroup)
                         .foregroundStyle(color)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
