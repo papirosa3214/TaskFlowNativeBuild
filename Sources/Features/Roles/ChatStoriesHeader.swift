@@ -462,7 +462,9 @@ struct ChatsFolderBar: View {
         }
         .padding(.horizontal, TFSpacing.screenHorizontal)
         // Зазор от поиска вдвое больше прежнего (владелец 12.11.2026).
-        .padding(.top, TFSpacing.xs)
+        // Ещё больше — 8 pt; отступ входит в саму липкую полоску, поэтому с
+        // ним же она и прилипает под шапкой (владелец 13.11.2026).
+        .padding(.top, TFSpacing.sm)
         .padding(.bottom, TFSpacing.xs)
     }
 
