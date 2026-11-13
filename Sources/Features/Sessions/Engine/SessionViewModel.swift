@@ -410,6 +410,17 @@ final class SessionViewModel {
         // Поле очищается сразу: сервер подтверждает команду только после
         // ответа, а держать текст в поле весь ответ — путаница. Ошибка вернёт его.
         composerText = ""
+        // Прошлый напечатанный ход — в историю ДО нового сообщения: иначе он
+        // оставался живым ходом под новым сообщением и пропадал, когда
+        // начинался новый ответ (владелец 13.11.2026: «ответ исчез»). Сбрасываем
+        // живой ход, только если в снимке уже есть его ответ — ничего не теряем.
+        if !isStreaming, !liveTurn.isEmpty {
+            await refresh()
+            let tail = feedRows.reversed().prefix { if case .user = $0 { return false } else { return true } }
+            if tail.contains(where: { if case .reply = $0 { return true } else { return false } }) {
+                liveTurn.reset()
+            }
+        }
         pendingOutgoing = text
         do {
             let response = try await apiClient.prompt(
