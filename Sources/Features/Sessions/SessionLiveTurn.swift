@@ -33,6 +33,16 @@ struct SessionLiveTurn: Equatable {
         ChatLiveBlockRegistry.shared.register(blocks, for: text)
     }
 
+    /// Разметка размышлений из снимка: `thinking_blocks` — список {text, blocks}.
+    static func registerThinking(_ value: SessionJSON?, for text: String) {
+        guard let list = value?.foundationValue as? [[String: Any]],
+              let match = list.first(where: { ($0["text"] as? String) == text }),
+              let blocks = match["blocks"] as? [Any],
+              let data = try? JSONSerialization.data(withJSONObject: blocks),
+              let decoded = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !decoded.isEmpty else { return }
+        ChatLiveBlockRegistry.shared.register(decoded, for: text)
+    }
+
     mutating func reset() {
         items = []
         startedAt = nil
@@ -50,7 +60,12 @@ struct SessionLiveTurn: Equatable {
             // готовит сервер; кусок `delta` — только если сервер старый.
             let server = payload["text"]?.sessionString
             if case .thinking(let thought)? = items.last, thought.isRunning {
-                let text = server ?? thought.text + delta
+                // Размышление показывается только размеченным сервером: кусок
+                // без разметки не дописываем, иначе текст не совпадёт с
+                // разметкой и выйдет «Не удалось получить подготовленное
+                // содержимое» (владелец 13.11.2026). Хвост придёт в message_end.
+                guard let server else { return }
+                let text = server
                 items[items.count - 1] = .thinking(RoleChatThinking(
                     id: thought.id, text: text, isRunning: true, startedAt: thought.startedAt))
                 Self.register(payload["blocks"], for: text)
@@ -74,8 +89,15 @@ struct SessionLiveTurn: Equatable {
                 Self.register(payload["blocks"], for: full)
             }
         case "message_end":
-            // Хвост ответа: сервер шлёт разметку кусками не каждый раз, а по
-            // абзацам; последняя — здесь (тонкий клиент без нагрева, 13.11.2026).
+            // Хвост ответа и размышления: сервер шлёт разметку не каждый раз,
+            // а по абзацам; последняя — здесь (тонкий клиент без нагрева, 13.11.2026).
+            if case .object(let thinking)? = payload["thinking"], let full = thinking["text"]?.sessionString,
+               let index = items.lastIndex(where: { if case .thinking = $0 { return true } else { return false } }),
+               case .thinking(let thought) = items[index] {
+                items[index] = .thinking(RoleChatThinking(id: thought.id, text: full, isRunning: thought.isRunning,
+                                                          startedAt: thought.startedAt))
+                Self.register(thinking["blocks"], for: full)
+            }
             guard let full = payload["text"]?.sessionString, case .text? = items.last else { return }
             items[items.count - 1] = .text(full)
             Self.register(payload["blocks"], for: full)
@@ -193,6 +215,8 @@ enum SessionFeed {
                         switch value["type"]?.sessionString ?? "" {
                         case "thinking":
                             let text = value["thinking"]?.sessionString ?? value["text"]?.sessionString ?? ""
+                            // Разметка размышления из истории — с сервера (thinking_blocks).
+                            SessionLiveTurn.registerThinking(object["thinking_blocks"], for: text)
                             guard !text.isEmpty else { continue }
                             if workID == nil { workID = entryID + "-work" }
                             work.append(.thinking(RoleChatThinking(
