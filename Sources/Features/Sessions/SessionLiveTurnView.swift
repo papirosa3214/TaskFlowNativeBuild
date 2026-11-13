@@ -160,9 +160,12 @@ private struct SessionLiveItemsContent: View {
                                     showsPreview: showsActionPreview,
                                     isExpanded: isGroupExpanded(identity),
                                     onToggle: { toggleGroup(identity) },
-                                    // Три точки в 3D вместо трёх плиток (владелец 13.11.2026).
-                                    leadingIcon: AnyView(SessionDotsGlyph(isAnimating: isStreaming && identity == identities.last)
-                                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 })) { item in
+                                    // Три точки в 3D вместо трёх плиток — только пока действие идёт;
+                                    // закончилось — без значка, одно слово «Действия» (владелец 13.11.2026).
+                                    leadingIcon: isStreaming && identity == identities.last
+                                        ? AnyView(SessionDotsGlyph(isAnimating: true)
+                                            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 })
+                                        : AnyView(EmptyView())) { item in
                         itemView(item)
                     }
                 }
