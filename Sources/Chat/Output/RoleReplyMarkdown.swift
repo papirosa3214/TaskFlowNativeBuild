@@ -447,11 +447,23 @@ struct ChatTableView: View {
     /// Ширины колонок для этой таблицы: из кэша или один раз мерятся здесь.
     /// Кегль входит в ключ — при смене «Настройки → Шрифт» таблица меряется заново.
     private func widths() -> [CGFloat] {
-        let key = Self.cacheKey(table, size: bodySize)
+        // Ключ — тем же шрифтом, каким ячейка рисуется: гарнитура и кегли
+        // чата (владелец 13.11.2026: последняя буква уезжала на новую строку).
+        let face = TFTypeFace.saved(for: .chat, group: TFChatTypeGroup.body.rawValue)
+        let key = Self.cacheKey(table, size: TFChatTypeGroup.body.size * 10 + TFChatTypeGroup.heading.size) + "\u{1C}" + face.rawValue
         if let cached = Self.widthCache.value(for: key) { return cached }
         let measured = measuredWidths()
         Self.widthCache.set(measured, for: key)
         return measured
+    }
+
+    /// Шрифт чата для замера — та же гарнитура и кегль, что у нарисованного текста.
+    static func chatUIFont(_ group: TFChatTypeGroup, bold: Bool) -> UIFont {
+        let face = TFTypeFace.saved(for: .chat, group: group.rawValue)
+        if let names = face.names, let custom = UIFont(name: bold ? names.bold : names.regular, size: group.size) {
+            return custom
+        }
+        return UIFont.systemFont(ofSize: group.size, weight: bold ? .semibold : .regular)
     }
 
     /// Ключ кэша — содержимое таблицы и кегль, без хеширования всего текста:
@@ -464,8 +476,12 @@ struct ChatTableView: View {
     }
 
     private func measuredWidths() -> [CGFloat] {
-        let font = UIFont.systemFont(ofSize: bodySize)
-        let headerFont = UIFont.systemFont(ofSize: bodySize, weight: .semibold)
+        // Мерить тем же шрифтом, каким ячейка рисуется (`.tfText(.body)` в чате
+        // = шрифт чата группы body, шапка — heading полужирным). Раньше мерили
+        // системным 15 pt, а рисовали шрифтом чата — колонка выходила на долю
+        // буквы уже, и последняя буква уезжала на новую строку (13.11.2026).
+        let font = Self.chatUIFont(.body, bold: false)
+        let headerFont = Self.chatUIFont(.heading, bold: true)
         return table.header.indices.map { column in
             var widest: CGFloat = 0
             let cells = ([table.header] + table.rows).compactMap { row in
@@ -478,7 +494,8 @@ struct ChatTableView: View {
                     .reduce(CGFloat.zero) { max($0, ($1 as NSString).size(withAttributes: [.font: useFont]).width) }
                 widest = max(widest, ceil(measured))
             }
-            return min(max(Self.minCellWidth, widest + Self.paddingH * 2 + 2), Self.maxCellWidth)
+            // +4: запас на трекинг и округление — чтобы буква не уезжала.
+            return min(max(Self.minCellWidth, widest + Self.paddingH * 2 + 4), Self.maxCellWidth)
         }
     }
 
