@@ -73,6 +73,12 @@ struct SessionLiveTurn: Equatable {
                 items.append(.text(full))
                 Self.register(payload["blocks"], for: full)
             }
+        case "message_end":
+            // Хвост ответа: сервер шлёт разметку кусками не каждый раз, а по
+            // абзацам; последняя — здесь (тонкий клиент без нагрева, 13.11.2026).
+            guard let full = payload["text"]?.sessionString, case .text? = items.last else { return }
+            items[items.count - 1] = .text(full)
+            Self.register(payload["blocks"], for: full)
         case "tool_start":
             closeThinking(at: stamp)
             let id = payload["toolCallId"]?.sessionString ?? "tool-\(items.count)"

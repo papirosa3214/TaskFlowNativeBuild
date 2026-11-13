@@ -26,3 +26,9 @@ Sources/Chat/Output/ChatHTMLView.swift | ChatHTMLHeightCache\.height\(for: | к�
 Sources/Chat/Feed/ChatFeedParts.swift | ChatThumbnailCache\.cachedImage\( | кэш миниатюр вложений
 Sources/Chat/Feed/ChatThumbnailCache.swift | kCGImageSourceShouldCache: false | миниатюры через ImageIO, без полной картинки
 Sources/Features/Roles/RoleChatsScreen.swift | Task\.detached | разбор списка чатов не на главном потоке
+
+# --- Тонкий клиент без нагрева (владелец 13.11.2026: «никогда в жизни по-другому») ---
+Sources/Features/Sessions/SessionLiveTurn.swift | ChatLiveBlockRegistry\.shared\.register\(blocks, for: text\) | живой ход сессии — разметкой сервера, телефон не разбирает
+Sources/Features/Sessions/SessionLiveTurn.swift | case "message_end": | хвост разметки — из message_end сервера
+Sources/Features/Sessions/OwnerSessionScreen.swift | SessionFeed\.serverDisplayText\(entry\) | ответ сессии — готовыми полями сервера
+CLAUDE.md | Тонкий клиент без нагрева — правило владельца 13\.11\.2026 | правило записано в инструкции агентов
