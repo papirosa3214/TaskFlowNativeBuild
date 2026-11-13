@@ -75,6 +75,9 @@ struct RoleActionGroup<Row: View>: View {
     /// сворачивался сам при прокрутке (владелец 11.11.2026).
     var isExpanded = false
     var onToggle: () -> Void = {}
+    /// Сессии (бета): свой значок вместо трёх плиток (владелец 13.11.2026).
+    /// nil — как было у ролей.
+    var leadingIcon: AnyView? = nil
     @ViewBuilder let row: (RoleChatLiveItem) -> Row
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -135,10 +138,14 @@ struct RoleActionGroup<Row: View>: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: TFSpacing.sm) {
-            Image(systemName: "square.stack.3d.up")
-                .tfTypeFont(size: 12, weight: .medium)
-                .foregroundStyle(Color.tfDim)
-                .frame(width: 16)
+            if let leadingIcon {
+                leadingIcon
+            } else {
+                Image(systemName: "square.stack.3d.up")
+                    .tfTypeFont(size: 12, weight: .medium)
+                    .foregroundStyle(Color.tfDim)
+                    .frame(width: 16)
+            }
             // «Работает» — только в пилюле над полем ввода; здесь пачка
             // подписана «Действия», пока ход идёт — с бликом (владелец 11.11.2026).
             if isLive {

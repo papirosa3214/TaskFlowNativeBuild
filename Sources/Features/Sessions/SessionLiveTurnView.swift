@@ -159,7 +159,10 @@ private struct SessionLiveItemsContent: View {
                     RoleActionGroup(items: group, isLive: isStreaming && identity == identities.last,
                                     showsPreview: showsActionPreview,
                                     isExpanded: isGroupExpanded(identity),
-                                    onToggle: { toggleGroup(identity) }) { item in
+                                    onToggle: { toggleGroup(identity) },
+                                    // Три точки в 3D вместо трёх плиток (владелец 13.11.2026).
+                                    leadingIcon: AnyView(SessionDotsGlyph(isAnimating: isStreaming && identity == identities.last)
+                                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 })) { item in
                         itemView(item)
                     }
                 }
