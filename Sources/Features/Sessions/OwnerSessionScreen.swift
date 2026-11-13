@@ -70,13 +70,11 @@ struct OwnerSessionScreen: View {
                                            expansionRow: Self.liveTurnID, expansion: feedExpansion)
                             .id(Self.liveTurnID)
                     }
-                    if model.isStreaming {
-                        // Кубик хода (видео владельца 12.11.2026): думает,
-                        // инструмент, роли, пишет — поворотом на свою грань.
-                        // Рядом словечко, как у Claude Code: грань — чем занят Помощник.
-                        TFActivityStatus(phase: activityPhase, seed: model.liveTurn.startedAt.map { Int($0.timeIntervalSince1970) } ?? 0)
-                            .id(Self.liveID)
-                    }
+                    // Кубик хода из ленты убран (владелец 13.11.2026: «убери кубик…
+                    // там было 4 иконки, двигающиеся» — нужен был не кубик).
+                    // Было: Кубик хода (видео владельца 12.11.2026): думает,
+                    // инструмент, роли, пишет — поворотом на свою грань.
+                    // Рядом словечко, как у Claude Code: грань — чем занят Помощник.
                     if model.displayRows.isEmpty && !model.isStreaming && !model.isLoading {
                         Text("Напишите, что нужно сделать.")
                             .tfText(.action)
