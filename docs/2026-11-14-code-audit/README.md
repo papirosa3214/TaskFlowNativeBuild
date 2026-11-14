@@ -13,8 +13,9 @@
 Масштаб на момент первого прохода: `Sources` — 484 файла Swift (App 7, Chat 46,
 Core 177, DesignSystem 57, Features 197), `Tests` — 184, `UITests` — 51,
 `Widgets` — 3. После работ в ветке `audit/code-2026-11-14`: `Sources` — 486
-(+`SafePasteboard.swift`, +`ChatCacheRow.swift`), `Tests` — 185
-(+`ChatCacheRestoreTests.swift`), остальное без изменений. `project.yml`
+(App 7, Chat 46, Core 179, DesignSystem 57, Features 197 — +`SafePasteboard.swift`,
++`ChatCacheRow.swift`), `Tests` — 185 (+`ChatCacheRestoreTests.swift`), остальное
+без изменений. `project.yml`
 генерится xcodegen, deployment target iOS 18.0.
 
 ---
