@@ -53,6 +53,7 @@ struct OwnerSessionScreen: View {
     /// (`GET /api/sessions/:id/todos`). Состояние одно на активную сессию:
     /// при переключении очищается, поздний ответ чужой сессии не ложится.
     @State private var todos: SessionTodos?
+    @State private var todosRequestGeneration: UInt64 = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     /// Метки этой сессии (название, проект, закрепление) — из списка сессий.
@@ -302,6 +303,7 @@ struct OwnerSessionScreen: View {
         // записи) и после восстановления/смены сессии.
         .onChange(of: model.state.messages.count) { _, _ in Task { await reloadTodos() } }
         .onChange(of: model.activeSessionID) { _, _ in
+            todosRequestGeneration &+= 1
             todos = nil
             Task { await reloadTodos() }
         }
@@ -428,10 +430,12 @@ struct OwnerSessionScreen: View {
     /// Список дел агента Pi в активной сессии — заметка и последняя запись
     /// транскрипта. Запрос из прошлой сессии отбрасывается: переключились, пока ответ был в пути.
     private func reloadTodos() async {
+        todosRequestGeneration &+= 1
+        let generation = todosRequestGeneration
         guard let id = model.activeSessionID else { todos = nil; return }
         guard let response = try? await SessionAPIClient().todos(sessionID: id),
               !Task.isCancelled else { return }
-        guard id == model.activeSessionID else { return }
+        guard id == model.activeSessionID, generation == todosRequestGeneration else { return }
         guard let incoming = response.todos else { return }
         guard SessionTodos.isNewer(incoming, than: todos) else { return }
         todos = incoming
