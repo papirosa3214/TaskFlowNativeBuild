@@ -83,7 +83,7 @@ public struct ChatLiveBlock: Decodable, Sendable, Equatable {
 /// показывали «Не удалось получить подготовленное содержимое»).
 ///
 /// Запись можно привязать к области — идентичности живого хода
-/// (`ChatLiveBlockScope.session(_:turnStartedAt:)`). Два хода с одинаковым или
+/// (`ChatLiveTurnIdentity`). Два хода с одинаковым или
 /// пересекающимся текстом регистрируют разные блоки, и без области каждый из
 /// них доставал чужую разметку: ответ одной сессии рисовался блоками другой
 /// (владелец 14.11.2026). Теперь совпадение текста засчитывается только внутри
@@ -138,15 +138,29 @@ public final class ChatLiveBlockRegistry: @unchecked Sendable {
     }
 }
 
-/// Идентичность живого хода: сессия и начало её хода. Сессия живёт долго, а
-/// ходов в ней много, поэтому одной сессии мало: соседние ходы одного чата
-/// тоже не должны смешиваться. Строка области строится одинаково на записи
-/// (`SessionLiveTurn.apply`) и на чтении (`SessionLiveTurn.scope`) — обе берут
-/// `Date.ISO8601Format()`, как и `RoleChatLiveTurn.startedAt`.
-enum ChatLiveBlockScope {
-    static func session(_ sessionID: String, turnStartedAt: Date?) -> String {
-        sessionID + ":" + (turnStartedAt?.ISO8601Format() ?? "live")
+/// Идентичность живого хода: у каждого хода свой номер, выданный один раз
+/// при его начале, и он не пересчитывается из изменяемых полей.
+///
+/// Прежде область строилась из `sessionID` и `startedAt`: два хода в одну
+/// секунду совпадали (`ISO8601Format` без долей), событие без `agent_start`
+/// до `startedAt` давало `live`, а смена снимка переприсваивала `sessionID`
+/// старому ходу. Запись блоков и чтение на экране берут теперь одну и ту же
+/// строку `scope`, и переключение сессии уже не может связать запись с чужим
+/// чтением (владелец 14.11.2026).
+public struct ChatLiveTurnIdentity: Hashable, Sendable {
+    /// Сессия, в которой начался ход: смена сессии — уже другой ход.
+    public let sessionID: String?
+    /// Номер хода: выдаётся сам собой, поэтому два одинаковых текста и две
+    /// близкие по времени реплики не делят область.
+    public let token: String
+
+    public init(sessionID: String?, token: String = UUID().uuidString.lowercased()) {
+        self.sessionID = sessionID
+        self.token = token
     }
+
+    /// Строка области разметки: неизменна на весь ход.
+    public var scope: String { "turn:" + token }
 }
 
 public extension ChatServerBlock {
@@ -162,5 +176,35 @@ public extension ChatServerBlock {
         guard let value, JSONSerialization.isValidJSONObject(value),
               let data = try? JSONSerialization.data(withJSONObject: value) else { return nil }
         return try? JSONDecoder().decode([ChatServerBlock].self, from: data)
+    }
+
+    /// Ключ кэша разбора — полное содержимое блока, а не его размеры.
+    /// Прежний ключ живого куска знал у документа только число символов, у
+    /// таблицы только размеры, а виджеты — `hashValue`: два разных payload с
+    /// одинаковым исходным текстом делили одну запись кэша, и один ответ
+    /// рисовался разметкой другого (владелец 14.11.2026).
+    var cacheKey: String {
+        switch self {
+        case .doc(let doc, let chars):
+            return "doc/\(chars)/" + Self.canonical(doc.foundationValue)
+        case .table(let header, let align, let rows, let chars):
+            let cells: [Any] = [header.map(\.foundationValue), align, rows.map { $0.map(\.foundationValue) }]
+            return "table/\(chars)/" + Self.canonical(cells)
+        case .widget(let json): return "widget/" + json
+        case .structuredJSON(let json): return "json/" + json
+        case .structuredJSONStreaming(let json): return "json-stream/" + json
+        case .html(let html): return "html/" + html
+        case .pending(let kind): return "pending/" + kind
+        case .unknown: return "unknown"
+        }
+    }
+
+    /// Запись значения без зависимости от порядка словаря и пробелов: одно и
+    /// то же содержимое всегда даёт одну строку, разное — разные.
+    static func canonical(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8) else { return String(describing: value) }
+        return text
     }
 }

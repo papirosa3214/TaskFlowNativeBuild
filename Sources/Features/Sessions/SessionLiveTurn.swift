@@ -15,15 +15,20 @@ typealias SessionJSON = JSONValue
 struct SessionLiveTurn: Equatable {
     private(set) var items: [RoleChatLiveItem] = []
     private(set) var startedAt: Date?
-    /// Сессия, которой принадлежит ход. Вместе с `startedAt` даёт область
-    /// разметки: два хода с одинаковым текстом больше не достают чужие блоки.
-    private(set) var sessionID: String?
+    /// Идентичность хода: выдаётся один раз при его начале и хранится здесь.
+    /// Раньше область пересчитывалась из `sessionID` и `startedAt` при каждом
+    /// обращении: два хода в одну секунду получали одну область, событие без
+    /// `agent_start` — `live`, а смена снимка переприсваивала сессию старому
+    /// ходу. Теперь запись (`apply` → `scope`) и чтение на экране берут одну
+    /// и ту же неизменную строку (владелец 14.11.2026).
+    private(set) var identity: ChatLiveTurnIdentity?
+
+    /// Сессия, которой принадлежит ход.
+    var sessionID: String? { identity?.sessionID }
 
     /// Область живой разметки этого хода — та же строка, с которой
     /// регистрируются блоки, поэтому чтение не может промахнуться.
-    var scope: String? {
-        sessionID.map { ChatLiveBlockScope.session($0, turnStartedAt: startedAt) }
-    }
+    var scope: String? { identity?.scope }
 
     var isEmpty: Bool { items.isEmpty }
 
@@ -62,18 +67,44 @@ struct SessionLiveTurn: Equatable {
     mutating func reset() {
         items = []
         startedAt = nil
+        identity = nil
+    }
+
+    /// Открыта другая сессия: живой ход прежней сессии к этой не относится —
+    /// его элементы и область сбрасываются, чтобы не показаться под её
+    /// историей. Снимок той же сессии ход сохраняет (перечитывание, ответ
+    /// голоса, повторный запрос).
+    mutating func bind(sessionID: String?) {
+        guard let sessionID, sessionID != self.sessionID else { return }
+        reset()
+        identity = ChatLiveTurnIdentity(sessionID: sessionID)
+    }
+
+    /// Новый ход: своя идентичность на каждый `agent_start`, даже если два
+    /// хода начались в одну секунду.
+    mutating func beginTurn(at now: Date) {
+        let sessionID = identity?.sessionID
+        reset()
+        startedAt = now
+        identity = ChatLiveTurnIdentity(sessionID: sessionID)
     }
 
     mutating func apply(type: String, payload: [String: SessionJSON], now: Date = Date(),
                         sessionID: String? = nil) {
-        if let sessionID { self.sessionID = sessionID }
+        bind(sessionID: sessionID)
+        if type == "agent_start" {
+            beginTurn(at: now)
+        } else if identity == nil {
+            // Событие без `agent_start` (переподключение, середина хода):
+            // номер выдаётся здесь же, и запись совпадёт с чтением.
+            identity = ChatLiveTurnIdentity(sessionID: sessionID)
+        }
         let stamp = SessionFeed.stamp(now)
-        var scope = self.scope
+        let scope = self.scope
         switch type {
         case "agent_start":
-            reset()
-            startedAt = now
-            scope = self.scope
+            // Ход начат выше: reset(), startedAt и новая идентичность.
+            break
         case "assistant_thinking_delta":
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
             // Тонкий клиент (владелец 13.11.2026): весь текст части и блоки
