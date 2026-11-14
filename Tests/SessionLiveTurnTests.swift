@@ -20,6 +20,7 @@ final class SessionLiveTurnTests: XCTestCase {
         turn.apply(type: "assistant_text_delta", payload: ["delta": .string("Гото")])
         turn.apply(type: "assistant_text_delta", payload: ["delta": .string("во")])
         XCTAssertEqual(turn.items.count, 2)
+        guard turn.items.count == 2 else { return XCTFail("пунктов \(turn.items.count), ждали 2") }
         guard case .thinking(let done) = turn.items[0] else { return XCTFail() }
         XCTAssertFalse(done.isRunning, "текст закрывает размышление")
         XCTAssertEqual(turn.items[1], .text("Готово"))
