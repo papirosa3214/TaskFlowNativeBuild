@@ -62,6 +62,13 @@ final class SessionViewModel {
     /// берём из снимка, а не оставляем ход с дырой.
     private var liveTurnHasGaps = false
     private var sessionGeneration: UInt64 = 0
+    /// Очередь установки снимка: ответы не по порядку и события, пришедшие
+    /// за время запроса, не должны ни затирать новый снимок, ни пропадать
+    /// (`SessionSnapshotGate`).
+    @ObservationIgnored private var snapshotGate = SessionSnapshotGate()
+    /// Сколько событий открытой сессии легло в состояние: по этой метке
+    /// видно, опустело ли окно запроса снимка.
+    @ObservationIgnored private var appliedEventMark: UInt64 = 0
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
@@ -489,6 +496,7 @@ final class SessionViewModel {
     }
 
     private func receive(_ event: SessionEventEnvelope) {
+        if event.sessionId == activeSessionID { appliedEventMark &+= 1 }
         recordActivity(event)
         // Повтор уже принятого куска (после переподключения сервер может
         // прислать его снова) в живой ход не пишем — иначе слова двоятся.
@@ -547,13 +555,35 @@ final class SessionViewModel {
     private func refreshSnapshot() async {
         guard let sessionID = activeSessionID else { return }
         let generation = sessionGeneration
-        do {
-            let response = try await apiClient.snapshot(sessionID: sessionID)
-            guard activeSessionID == sessionID, sessionGeneration == generation,
-                  response.session.id == sessionID else { return }
-            installSnapshot(response.session, preservingCursor: true)
-        } catch {
-            errorMessage = error.localizedDescription
+        // Две попытки: первая может попасть в окно с событиями — тогда снимок
+        // отбрасывается и запрашивается заново, уже на опустевшем окне
+        // (правило «пустое окно» — в `SessionSnapshotGate`).
+        for attempt in 1...2 {
+            let ticket = snapshotGate.begin(windowMark: appliedEventMark)
+            do {
+                let response = try await apiClient.snapshot(sessionID: sessionID)
+                guard activeSessionID == sessionID, sessionGeneration == generation,
+                      response.session.id == sessionID else { return }
+                switch snapshotGate.verdict(ticket, windowMark: appliedEventMark) {
+                case .install:
+                    snapshotGate.markInstalled(ticket)
+                    installSnapshot(response.session, preservingCursor: true)
+                    return
+                case .superseded:
+                    ClientLog.shared.add(
+                        "session=\(sessionID) snapshot=superseded serial=\(ticket.serial)"
+                    )
+                    return
+                case .windowDirty:
+                    ClientLog.shared.add(
+                        "session=\(sessionID) snapshot=window-dirty serial=\(ticket.serial) attempt=\(attempt)"
+                    )
+                    continue
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
         }
     }
 
