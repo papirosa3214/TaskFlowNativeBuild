@@ -549,14 +549,35 @@ final class SessionViewModel {
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
                 // 13.11.2026: «какие-то слова не допечатываются»).
-                ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired)")
-                if payload.resetRequired, !liveTurn.isEmpty { liveTurnHasGaps = true }
+                ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired) lost=\(payload.eventsLost)")
                 if payload.resetRequired {
                     // Состояние заменяется целиком: снимок, запрос которого
                     // начат раньше восстановления, старше его даже без новых
                     // событий — иначе он ложится поверх с сохранёнными
                     // `seenCursors`, и догнанное событие пропадает навсегда.
                     sessionWindow.noteReset()
+                    // Сервер `c90c2c18` отдаёт снимок и **только** окно событий
+                    // после его точки. Снимок — основа; окно проигрывается в
+                    // том же порядке и в состояние (там же), и в живой ход,
+                    // иначе незавершённый ответ после обрыва не показывается
+                    // (владелец 14.11.2026). События не новее точки и повторы
+                    // отсекает `SessionReconnectReplay`: в снимке они уже есть.
+                    let replay = SessionReconnectReplay.events(payload, sessionID: sessionID)
+                    SessionReducer.apply(payload, to: &state)
+                    liveTurn.reset()
+                    liveTurn.bind(sessionID: sessionID)
+                    liveTurnHasGaps = false
+                    for event in replay {
+                        updateLiveTurnStopState(event)
+                        liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
+                    }
+                    if payload.eventsLost {
+                        // Точку снимка уже вытеснило: головы части хода в ленте
+                        // нет, восстановить её событиями нельзя. Не выдумываем
+                        // данные: остаётся снимок, незавершённый ответ доедет
+                        // целиком на `message_end` (серверный контракт).
+                        ClientLog.shared.add("session=\(sessionID) recover events-lost snapshot-only")
+                    }
                 } else {
                     // Только реально новые куски открытой сессии: их же кладём
                     // в живой ход и ими же закрываем окно снимка.
@@ -568,8 +589,8 @@ final class SessionViewModel {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
                     }
+                    SessionReducer.apply(payload, to: &state)
                 }
-                SessionReducer.apply(payload, to: &state)
                 if state.needsSnapshotReset { await refreshSnapshot() }
             } else {
                 await refreshSnapshot()

@@ -111,6 +111,97 @@ final class SessionReducerTests: XCTestCase {
         XCTAssertEqual(state.lastCursor, "r3")
     }
 
+    /// Сервер `c90c2c18`: при сбросе приходит снимок со своей точкой, а
+    /// `events` — только окно новее неё. Снимок — основа, окно проигрывается
+    /// по порядку; запись не новее точки уже в `entries` и не повторяется.
+    func testReconnectResetReplaysOnlyEventsAfterSnapshotPoint() throws {
+        let entry: JSONValue = .object([
+            "type": .string("message"),
+            "id": .string("entry-1"),
+            "message": .object([
+                "role": .string("assistant"),
+                "content": .array([.object(["type": .string("text"), "text": .string("Ready")])]),
+            ]),
+        ])
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: "entry-1",
+            isStreaming: true, isIdle: false, entries: [entry], tree: [],
+            eventCursor: "e:10", eventCursorEpoch: "e", eventCursorSeq: 10
+        )
+        // e:9 — уже в снимке (сервер старой версии мог прислать и его);
+        // e:11 и e:12 — окно незавершённого ответа после точки.
+        let stale = try event(#"{"cursor":"e:9","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Ready"}]}}}"#)
+        let windowDelta = try event(#"{"cursor":"e:11","sessionId":"root","type":"assistant_text_delta","timestamp":"t","payload":{"delta":"Tail"}}"#)
+        let windowEnd = try event(#"{"cursor":"e:12","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Tail"}]}}}"#)
+        var state = SessionState(snapshot: .fixture(id: "stale"))
+        state.lastCursor = "e:1"
+
+        let payload = SessionReconnectPayload(
+            resetRequired: true, events: [stale, windowDelta, windowEnd], snapshot: snapshot
+        )
+        SessionReducer.apply(payload, to: &state)
+
+        XCTAssertEqual(state.snapshot?.id, "root")
+        XCTAssertEqual(state.snapshot?.entries, [entry], "снимок — основа, его записи не переписываются")
+        XCTAssertEqual(
+            SessionReconnectReplay.events(payload, sessionID: "root").map(\.cursor), ["e:11", "e:12"],
+            "в живой ход — ровно окно после точки, по порядку"
+        )
+        XCTAssertEqual(state.transientAssistantText, "")
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")],
+                       "событие не новее точки не повторяет запись снимка")
+        XCTAssertEqual(state.lastCursor, "e:12", "догон продолжается с последнего проигранного")
+        XCTAssertFalse(state.needsSnapshotReset)
+    }
+
+    /// `eventsLost`: точку снимка вытеснило, головы части хода в ленте нет.
+    /// Честный итог — только снимок и его точка; данные не выдумываются.
+    func testReconnectResetEventsLostKeepsSnapshotAndItsPointOnly() throws {
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: nil,
+            isStreaming: true, isIdle: false, entries: [], tree: [],
+            eventCursor: "e:500", eventCursorEpoch: "e", eventCursorSeq: 500
+        )
+        // Сервер в этом случае шлёт пустые events; даже если что-то пришло,
+        // проигрывать его нельзя: неизвестно, что уже в снимке.
+        let tail = try event(#"{"cursor":"e:512","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Tail"}]}}}"#)
+        let payload = SessionReconnectPayload(
+            resetRequired: true, events: [tail], snapshot: snapshot, eventsLost: true
+        )
+        var state = SessionState(snapshot: .fixture(id: "stale"))
+
+        XCTAssertEqual(SessionReconnectReplay.events(payload, sessionID: "root"), [],
+                       "при eventsLost окно не проигрывается")
+        SessionReducer.apply(payload, to: &state)
+
+        XCTAssertEqual(state.snapshot?.id, "root")
+        XCTAssertTrue(state.messages.isEmpty)
+        XCTAssertEqual(state.lastCursor, "e:500")
+        XCTAssertFalse(state.needsSnapshotReset)
+    }
+
+    /// Другая эпоха ленты — другая лента: её события снимку не принадлежат и
+    /// не проигрываются, курсор остаётся на точке снимка.
+    func testReconnectResetSkipsEventsFromAnotherEpoch() throws {
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: nil,
+            isStreaming: false, isIdle: true, entries: [], tree: [],
+            eventCursor: "e:10", eventCursorEpoch: "e", eventCursorSeq: 10
+        )
+        let foreign = try event(#"{"cursor":"f:12","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Old epoch"}]}}}"#)
+        let payload = SessionReconnectPayload(resetRequired: true, events: [foreign], snapshot: snapshot)
+        var state = SessionState(snapshot: .fixture(id: "stale"))
+
+        SessionReducer.apply(payload, to: &state)
+
+        XCTAssertEqual(SessionReconnectReplay.events(payload, sessionID: "root"), [])
+        XCTAssertTrue(state.messages.isEmpty)
+        XCTAssertEqual(state.lastCursor, "e:10")
+    }
+
     func testMissingReconnectSnapshotRequestsReset() {
         var state = SessionState(snapshot: .fixture(id: "root"))
 

@@ -116,6 +116,13 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
     public var isIdle: Bool
     public let entries: [JSONValue]
     public let tree: [JSONValue]
+    /// Точка ленты на мгновение снимка (сервер `c90c2c18`, контракт —
+    /// `docs/current/owner-session-snapshot-events.md`). Всё, что не новее
+    /// этой точки, уже в `entries`; новее — приходит событиями. У старого
+    /// сервера полей нет, и покрытие снимка неизвестно.
+    public let eventCursor: String?
+    public let eventCursorEpoch: String?
+    public let eventCursorSeq: Int?
 
     public init(
         id: String,
@@ -129,7 +136,10 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
         isStreaming: Bool,
         isIdle: Bool,
         entries: [JSONValue],
-        tree: [JSONValue]
+        tree: [JSONValue],
+        eventCursor: String? = nil,
+        eventCursorEpoch: String? = nil,
+        eventCursorSeq: Int? = nil
     ) {
         self.id = id
         self.cwd = cwd
@@ -143,6 +153,9 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
         self.isIdle = isIdle
         self.entries = entries
         self.tree = tree
+        self.eventCursor = eventCursor
+        self.eventCursorEpoch = eventCursorEpoch
+        self.eventCursorSeq = eventCursorSeq
     }
 
     public init?(json: JSONValue) {
@@ -159,7 +172,10 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
             isStreaming: json["isStreaming"]?.boolValue ?? false,
             isIdle: json["isIdle"]?.boolValue ?? false,
             entries: json["entries"]?.arrayValue ?? [],
-            tree: json["tree"]?.arrayValue ?? []
+            tree: json["tree"]?.arrayValue ?? [],
+            eventCursor: json["eventCursor"]?.stringValue,
+            eventCursorEpoch: json["eventCursorEpoch"]?.stringValue,
+            eventCursorSeq: json["eventCursorSeq"]?.intValue
         )
     }
 }
@@ -219,18 +235,29 @@ public struct SessionReconnectPayload: Equatable, Sendable, JSONValueDecodable {
     public let resetRequired: Bool
     public let events: [SessionEventEnvelope]
     public let snapshot: SessionSnapshot?
+    /// При сбросе: точку снимка уже вытеснило из ленты, часть хода событиями
+    /// не восстановить. Сервер отдаёт только снимок; голову незавершённого
+    /// ответа доиграет сам Pi на `message_end`.
+    public let eventsLost: Bool
 
-    public init(resetRequired: Bool, events: [SessionEventEnvelope], snapshot: SessionSnapshot?) {
+    public init(
+        resetRequired: Bool,
+        events: [SessionEventEnvelope],
+        snapshot: SessionSnapshot?,
+        eventsLost: Bool = false
+    ) {
         self.resetRequired = resetRequired
         self.events = events
         self.snapshot = snapshot
+        self.eventsLost = eventsLost
     }
 
     public init?(json: JSONValue) {
         self.init(
             resetRequired: json["resetRequired"]?.boolValue ?? false,
             events: (json["events"]?.arrayValue ?? []).compactMap(SessionEventEnvelope.init(json:)),
-            snapshot: json["snapshot"].flatMap(SessionSnapshot.init(json:))
+            snapshot: json["snapshot"].flatMap(SessionSnapshot.init(json:)),
+            eventsLost: json["eventsLost"]?.boolValue ?? false
         )
     }
 }

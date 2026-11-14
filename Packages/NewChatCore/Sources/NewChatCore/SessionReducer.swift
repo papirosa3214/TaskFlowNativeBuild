@@ -10,9 +10,23 @@ public enum SessionReducer {
             let delivery = state.commandDelivery
             state = SessionState(snapshot: snapshot)
             state.commandDelivery = delivery
-            for event in reconnect.events {
-                state.seenCursors.insert(event.cursor)
-                state.lastCursor = event.cursor
+            if let point = snapshot.eventPoint {
+                // Снимок — основа: его `entries` уже содержат всё не новее
+                // точки. Дальше — ровно окно после точки, в порядке ленты;
+                // запись с курсором не новее точки уже в снимке, повторять её
+                // нельзя (сервер `c90c2c18`).
+                state.lastCursor = point.cursor
+                for event in SessionReconnectReplay.events(reconnect, sessionID: snapshot.id) {
+                    apply(event, to: &state)
+                }
+            } else {
+                // Старый ответ без точки: покрытие снимка неизвестно. События
+                // могли уже войти в записи — только отмечаем курсоры, как
+                // раньше, а не проигрываем их.
+                for event in reconnect.events {
+                    state.seenCursors.insert(event.cursor)
+                    state.lastCursor = event.cursor
+                }
             }
             state.needsSnapshotReset = false
             return
