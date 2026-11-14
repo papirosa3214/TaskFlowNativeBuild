@@ -1,12 +1,23 @@
 import Foundation
 
 public enum SessionReducer {
-    public static func apply(_ reconnect: SessionReconnectPayload, to state: inout SessionState) {
+    /// `replay` — готовое окно для проигрывания после снимка (подготовлено
+    /// `SessionReconnectReplay.events(_:sessionID:carried:)` с учётом событий,
+    /// пришедших, пока ответ на сброс был в пути). Не передано — окно
+    /// считается по самому ответу.
+    public static func apply(
+        _ reconnect: SessionReconnectPayload,
+        replay: [SessionEventEnvelope]? = nil,
+        to state: inout SessionState
+    ) {
         if reconnect.resetRequired {
             guard let snapshot = reconnect.snapshot else {
                 state.needsSnapshotReset = true
                 return
             }
+            // Точка, с которой клиент шёл до сброса. Нужна, чтобы курсор после
+            // замены не откатился и следующий догон не спросил вытесненное.
+            let previous = state.lastCursor
             let delivery = state.commandDelivery
             state = SessionState(snapshot: snapshot)
             state.commandDelivery = delivery
@@ -15,10 +26,14 @@ public enum SessionReducer {
                 // точки. Дальше — ровно окно после точки, в порядке ленты;
                 // запись с курсором не новее точки уже в снимке, повторять её
                 // нельзя (сервер `c90c2c18`).
-                state.lastCursor = point.cursor
-                for event in SessionReconnectReplay.events(reconnect, sessionID: snapshot.id) {
+                let window = replay
+                    ?? SessionReconnectReplay.events(reconnect, sessionID: snapshot.id)
+                for event in window {
                     apply(event, to: &state)
                 }
+                state.lastCursor = SessionReconnectReplay.cursor(
+                    point: point, applied: window, previous: previous
+                )
             } else {
                 // Старый ответ без точки: покрытие снимка неизвестно. События
                 // могли уже войти в записи — только отмечаем курсоры, как

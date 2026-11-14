@@ -72,6 +72,12 @@ final class SessionViewModel {
     /// после переподключения, включая замену по `resetRequired`
     /// (`SessionEventWindow`).
     @ObservationIgnored private var sessionWindow = SessionEventWindow()
+    /// События открытой сессии, принятые по сокету, пока ответ на сброс в пути
+    /// (см. `receive`). Читаются и очищаются в `recoverAfterReconnect`.
+    @ObservationIgnored private var reconnectBuffer: [SessionEventEnvelope] = []
+    @ObservationIgnored private var isReconnectFetchInFlight = false
+    /// Потолок очереди — 512, как буфер ленты сервера: длиннее окно не бывает.
+    private static let reconnectBufferLimit = 512
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
@@ -508,6 +514,14 @@ final class SessionViewModel {
     }
 
     private func receive(_ event: SessionEventEnvelope) {
+        // Ответ на сброс собирается на сервере раньше, чем доходит до клиента:
+        // событие, пришедшее в это время по сокету, в него не входит. Помним
+        // такие события — иначе замена состояния снимком их теряет (ревью
+        // `7c7b5da0`, владелец 14.11.2026).
+        if isReconnectFetchInFlight, event.sessionId == activeSessionID {
+            if reconnectBuffer.count >= Self.reconnectBufferLimit { reconnectBuffer.removeFirst() }
+            reconnectBuffer.append(event)
+        }
         // Окно снимка двигает только реально новое событие открытой сессии:
         // повтор уже принятого куска состояние не меняет, а сервер после
         // переподключения пересылает хвост заново — на повторах сгорали бы
@@ -544,7 +558,21 @@ final class SessionViewModel {
         let generation = sessionGeneration
         do {
             if let cursor = state.lastCursor {
-                let payload = try await apiClient.events(sessionID: sessionID, after: cursor)
+                // Пока ответ в пути, сокет может принести события новее его
+                // снимка: сервер собрал ответ раньше. Собираем их и проигрываем
+                // после снимка — иначе они пропадают (ревью `7c7b5da0`).
+                reconnectBuffer.removeAll()
+                isReconnectFetchInFlight = true
+                let payload: SessionReconnectPayload
+                do {
+                    payload = try await apiClient.events(sessionID: sessionID, after: cursor)
+                } catch {
+                    isReconnectFetchInFlight = false
+                    throw error
+                }
+                isReconnectFetchInFlight = false
+                let carried = reconnectBuffer
+                reconnectBuffer.removeAll()
                 guard activeSessionID == sessionID, sessionGeneration == generation else { return }
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
@@ -562,11 +590,24 @@ final class SessionViewModel {
                     // иначе незавершённый ответ после обрыва не показывается
                     // (владелец 14.11.2026). События не новее точки и повторы
                     // отсекает `SessionReconnectReplay`: в снимке они уже есть.
-                    let replay = SessionReconnectReplay.events(payload, sessionID: sessionID)
-                    SessionReducer.apply(payload, to: &state)
-                    liveTurn.reset()
-                    liveTurn.bind(sessionID: sessionID)
-                    liveTurnHasGaps = false
+                    let replay = SessionReconnectReplay.events(
+                        payload, sessionID: sessionID, carried: carried
+                    )
+                    // Лента та же, а голову окна из неё уже вытеснило
+                    // (`eventsLost`): показанный текст сервер прислал сам, а
+                    // стирать его на каждом переподключении нельзя — полный
+                    // текст доедет на `message_end` (контракт сервера).
+                    let point = payload.snapshot?.eventPoint
+                    let previousPoint = state.lastCursor.flatMap { SessionEventPoint(cursor: $0) }
+                    let keepsLiveTurn = payload.eventsLost && previousPoint?.epoch == point?.epoch
+                    SessionReducer.apply(payload, replay: replay, to: &state)
+                    if keepsLiveTurn {
+                        liveTurnHasGaps = true
+                    } else {
+                        liveTurn.reset()
+                        liveTurn.bind(sessionID: sessionID)
+                        liveTurnHasGaps = false
+                    }
                     for event in replay {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
