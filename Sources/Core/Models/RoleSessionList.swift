@@ -134,8 +134,11 @@ public enum RoleSessionList {
         candidates.reduce(0) { $0 + (belongs($1, to: scope) ? 1 : 0) }
     }
 
-    public static func rows(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope) -> [RoleSessionRow] {
-        let visible = sorted(candidates.filter { belongs($0, to: scope) })
+    public static func rows(_ candidates: [RoleSessionCandidate], scope: RoleSessionScope?) -> [RoleSessionRow] {
+        let visible = sorted(candidates.filter { candidate in
+            if let scope { return belongs(candidate, to: scope) }
+            return candidate.roomKind != "dm" && candidate.parentChatID == nil
+        })
         let ids = Set(visible.map(\.id))
         let parent: (RoleSessionCandidate) -> String? = { chat in
             guard let id = chat.branchOfChatID, ids.contains(id), id != chat.id else { return nil }

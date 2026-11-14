@@ -875,6 +875,15 @@ struct RoleChatRoomScreen: View {
                         // выбор из списка — ПОДМЕНЮ `Menu`, выбранное отмечено
                         // галочкой (владелец 21.09.2026: «посмотри, как у нас
                         // троеточия и подменю, и сделай ровно так же»).
+                        if chat.roomKind == "personal",
+                           let roleKey = chat.members.first(where: {
+                               $0.id != session.currentUser?.id && $0.roleKey?.isEmpty == false
+                           })?.roleKey {
+                            Button { openRoute?(.agentProfile(id: roleKey)) } label: {
+                                Label("Профиль", systemImage: "person.crop.circle")
+                            }
+                            .accessibilityIdentifier("chat.roleProfile")
+                        }
                         Section {
                             // Привязка к задаче — только создателю: сервер
                             // остальным отвечает 403.

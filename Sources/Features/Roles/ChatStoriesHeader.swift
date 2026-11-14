@@ -33,10 +33,13 @@ struct ChatStory: Identifiable, Equatable {
     let member: RoleChatMember
     /// Роль прямо сейчас работает — вокруг кружка цветное кольцо.
     let working: Bool
+    /// Только режим ролей: иконка ведёт прямо в постоянный личный чат.
+    var personalChatID: String? = nil
 
     static func == (lhs: ChatStory, rhs: ChatStory) -> Bool {
         lhs.id == rhs.id && lhs.name == rhs.name && lhs.working == rhs.working
             && lhs.member.avatarURL == rhs.member.avatarURL
+            && lhs.personalChatID == rhs.personalChatID
     }
 }
 
@@ -44,6 +47,8 @@ extension ChatStory {
     /// Куда ведёт тап по кружку (владелец 12.11.2026): роль работает — в её
     /// чаты; не работает — в её профиль («кто он, что он, навыки»).
     var destination: AppRoute {
+        // Уточнение владельца 14.11.2026: профиль по иконке — только в режиме сессий.
+        if let personalChatID { return .roleChat(id: personalChatID) }
         if !working, let roleKey, !roleKey.isEmpty { return .agentProfile(id: roleKey) }
         return .chatRole(id: id)
     }

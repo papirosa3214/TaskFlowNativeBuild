@@ -540,7 +540,8 @@ struct RoleChatsScreen: View {
         let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
         return (secretary + internalRoles + externalRoles).map {
             ChatStory(id: $0.id, name: $0.name, roleKey: $0.roleKey, member: $0.member,
-                      working: $0.working || $0.personalTurn?.running == true)
+                      working: $0.working || $0.personalTurn?.running == true,
+                      personalChatID: ownerSessionsBeta ? nil : $0.personalChatID)
         }
     }
 
@@ -751,7 +752,7 @@ struct RoleChatsScreen: View {
     /// экран, ничего не удаляя. Режим новых сессий идёт мимо (`chatsHome`).
     @ViewBuilder
     private var rolesHome: some View {
-        let pinned = chats.filter { pinnedIDs.contains($0.id) }
+        let pinned = chats.filter { pinnedIDs.contains($0.id) && !$0.isPermanentRoom }
         if !pinned.isEmpty {
             homeHeader("Закреплённые")
             ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
@@ -759,31 +760,17 @@ struct RoleChatsScreen: View {
                 if index < pinned.count - 1 { rowDivider(afterAvatar: rowMember(chat) != nil) }
             }
         }
-        let roles = rooms?.roles.filter { $0.personalChatID != nil } ?? []
-        let secretary = roles.first { $0.id == Self.assistantID }
-        let others = roles.filter { $0.id != Self.assistantID }
-        if let secretary {
-            homeHeader("Помощник владельца")
-            homeRoleRow(secretary)
+        // Уточнение владельца 14.11.2026: личные комнаты — только по
+        // иконкам. Здесь остаются остальные разговоры, без списка ролей.
+        let byID = Dictionary(chats.filter { !$0.isPermanentRoom && !pinnedIDs.contains($0.id) }
+            .map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let ordinary = RoleSessionList.rows(candidates.filter { byID[$0.id] != nil }, scope: nil)
+            .compactMap { row in byID[row.id].map { (row: row, chat: $0) } }
+        if !ordinary.isEmpty {
+            homeHeader("Чаты")
+            sessionList(ordinary)
         }
-        let internalRoles = others.filter { !RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        let externalRoles = others.filter { RoleAvatarAsset.isExternalChatRole(roleKey: $0.roleKey, userID: $0.id) }
-        if !internalRoles.isEmpty {
-            homeHeader("Роли")
-            ForEach(Array(internalRoles.enumerated()), id: \.element.id) { index, role in
-                homeRoleRow(role)
-                if index < internalRoles.count - 1 { rowDivider(afterAvatar: true) }
-            }
-        }
-        if !externalRoles.isEmpty {
-            homeHeader("Внешние агенты")
-            ForEach(Array(externalRoles.enumerated()), id: \.element.id) { index, role in
-                homeRoleRow(role, photoOnAvatar: true)
-                if index < externalRoles.count - 1 { rowDivider(afterAvatar: true) }
-            }
-        }
-        homeHeader("Групповые чаты")
-        groupsCatalog
+
     }
 
     /// Строка комнаты в корне: имя, последняя реплика и время — как в списке
@@ -1170,7 +1157,8 @@ struct RoleChatsScreen: View {
             // Одна форма у всех сессий (владелец 12.11.2026): контекст есть
             // всегда — без замера «0%», — и рядом стадия: ждёт или работает.
             contextLabel: chat.contextUsage?.label ?? "Контекст 0%",
-            status: chat.turn?.running == true ? "В работе" : "Ожидает",
+            // 14.11.2026: спокойный чат ничего не ждёт; очередь здесь неизвестна.
+            status: chat.turn?.running == true ? "В работе" : nil,
             projectName: chat.projectName == chat.title ? nil : chat.projectName,
             member: rowMember(chat)
         )
