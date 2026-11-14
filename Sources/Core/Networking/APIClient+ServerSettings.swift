@@ -61,7 +61,7 @@ struct ServerSettingsSnapshot: Decodable, Sendable {
     let updatedAt: [String: String]
     enum CodingKeys: String, CodingKey { case settings, values; case updatedAt = "updated_at" }
     var groups: [String] {
-        let order = ["тишина", "перезапуски", "расписания", "снимки", "автоимпорт", "linear", "таймауты", "лимиты", "режим_приёма", "память"]
+        let order = ["тишина", "перезапуски", "расписания", "снимки", "автоимпорт", "linear", "таймауты", "лимиты", "режим_приёма", "память", "чаты"]
         let actual = Set(settings.map(\.group))
         return order.filter(actual.contains) + actual.subtracting(order).sorted()
     }

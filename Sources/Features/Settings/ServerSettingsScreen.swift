@@ -146,6 +146,7 @@ struct ServerSettingsScreen: View {
         case "режим_приёма": "Приём задач"
         case "автоимпорт": "Автоимпорт"
         case "память": "Память"
+        case "чаты": "Чаты"
         default: group.capitalized
         }
     }
