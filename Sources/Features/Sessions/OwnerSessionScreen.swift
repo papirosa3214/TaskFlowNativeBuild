@@ -325,7 +325,7 @@ struct OwnerSessionScreen: View {
         if case .user? = model.displayRows.last { return [] }
         for row in model.feedRows.reversed() {
             if case .user = row { return [] }
-            if case .reply(_, _, let entry) = row { return SessionFeed.serverQuickReplies(entry) ?? [] }
+            if case .reply(_, let reply) = row { return SessionFeed.serverQuickReplies(reply.entry) ?? [] }
         }
         return []
     }
@@ -538,19 +538,20 @@ private struct OwnerSessionRowView: View {
             // 10.11.2026: «как в T3 — работа свёрнута полосой»): раскрытие в
             // ленте растягивало строку и теряло состояние при пересборке.
             WorkActionsBar(items: items, stepDetailLoader: stepDetailLoader)
-        case .reply(_, let text, let blocks):
+        case .reply(_, let reply):
             VStack(alignment: .leading, spacing: TFSpacing.sm) {
                 // Прерванный ответ не должен выглядеть завершённым.
-                if let stop = SessionFeed.stop(blocks) {
+                if let stop = SessionFeed.stop(reply.entry) {
                     ChatInterruptionBadge(interruption: stop.interruption, isPartial: stop.isPartial)
                 }
-                OwnerSessionReply(text: text, isStreaming: false, entry: blocks)
+                OwnerSessionReply(text: reply.text, isStreaming: false,
+                                  blocks: reply.blocks, entry: reply.entry)
                 // Расход хода: токены, кэш, цена (владелец 13.11.2026).
-                if let usage = SessionFeed.usage(blocks) {
+                if let usage = SessionFeed.usage(reply.entry) {
                     RoleTurnUsageRow(usage: usage)
                 }
             }
-            .messageActions(text, onReply: onReply, onSelectText: onSelectText)
+            .messageActions(reply.text, onReply: onReply, onSelectText: onSelectText)
         }
     }
 }
@@ -579,15 +580,22 @@ private extension View {
 private struct OwnerSessionReply: View {
     let text: String
     let isStreaming: Bool
+    /// Разметка сервера для этого же текста (`text_blocks`).
+    var blocks: [ChatServerBlock]? = nil
     /// Запись снимка: поля, подготовленные сервером (как у ответа роли).
     var entry: SessionJSON? = nil
 
     var body: some View {
         // Тонкий клиент (владелец 13.11.2026): текст, блоки и карточки
         // готовит сервер той же обработкой, что ответ роли; телефон рисует.
+        // Отрисовка — общая с живым ходом (`SessionReplyMarkdown`), чтобы
+        // после перезахода ответ выглядел точно так же.
         VStack(alignment: .leading, spacing: TFSpacing.md) {
-            RoleReplyMarkdown(text: SessionFeed.serverDisplayText(entry) ?? text,
-                              serverBlocks: SessionFeed.serverTextBlocks(entry))
+            // Текст — готовое поле сервера (`display_text`), разметка — `text_blocks`.
+            let shown = SessionFeed.serverDisplayText(entry) ?? text
+            SessionReplyMarkdown(text: shown,
+                                 segments: SessionLiveReplyContent.prepared(text: shown, blocks: blocks),
+                                 isStreaming: isStreaming)
             // Одно серверное представление ответа (владелец 14.11.2026):
             // текст, таблица, виджет и HTML уже в блоках — конверт вторым
             // слоем больше не рисуется целиком, из него остаются файлы и

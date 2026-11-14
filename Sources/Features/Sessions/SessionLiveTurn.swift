@@ -63,9 +63,7 @@ struct SessionLiveTurn: Equatable {
     /// экран не покажет заглушку.
     @discardableResult
     static func register(_ value: SessionJSON?, for text: String, scope: String? = nil) -> Bool {
-        guard let list = value?.foundationValue as? [Any], !list.isEmpty,
-              let data = try? JSONSerialization.data(withJSONObject: list),
-              let blocks = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !blocks.isEmpty else { return false }
+        guard let blocks = liveBlocks(value), !blocks.isEmpty else { return false }
         if let scope {
             ChatLiveBlockRegistry.shared.register(blocks, for: text, scope: scope)
         } else {
@@ -73,6 +71,26 @@ struct SessionLiveTurn: Equatable {
             ChatLiveBlockRegistry.shared.register(blocks, for: text)
         }
         return true
+    }
+
+    /// Блоки серверной разметки списком. Разбираем ПО ОДНОМУ: нестандартный
+    /// блок (сервер новее приложения) не должен уносить с собой остальные —
+    /// иначе ответ оставался без разметки и его хвост не показывался вовсе.
+    static func liveBlocks(_ value: SessionJSON?) -> [ChatLiveBlock]? {
+        guard let list = value?.foundationValue as? [Any], !list.isEmpty else { return nil }
+        var blocks: [ChatLiveBlock] = []
+        for item in list {
+            guard let data = try? JSONSerialization.data(withJSONObject: item),
+                  let block = try? JSONDecoder().decode(ChatLiveBlock.self, from: data) else { continue }
+            blocks.append(block)
+        }
+        guard !blocks.isEmpty else { return nil }
+        return blocks
+    }
+
+    /// То же разметкой без признака источника — для показа (`RoleReplyMarkdown`).
+    static func blocks(_ value: SessionJSON?) -> [ChatServerBlock]? {
+        liveBlocks(value)?.map(\.block)
     }
 
     /// Разметка размышлений из снимка: `thinking_blocks` — список {text, blocks}.
@@ -253,17 +271,43 @@ struct SessionLiveTurn: Equatable {
     }
 }
 
+/// Реплика Помощника. Текст и разметка у неё от сервера и только от него:
+/// снимок отдаёт `display_text`/`text_blocks`, живой `message_end` — `text`/
+/// `blocks`. Телефон ничего не раскладывает заново, поэтому один и тот же
+/// ответ в живом ходе и в истории выглядит одинаково.
+struct SessionReply: Equatable {
+    /// Запись снимка: из неё же быстрые ответы, расход, конверт, прерывание.
+    var entry: SessionJSON?
+    /// Текст для показа — серверный `display_text`, иначе сырой текст сообщения.
+    var text: String
+    /// Разметка сервера для этого же текста.
+    var blocks: [ChatServerBlock]?
+
+    init(entry: SessionJSON? = nil, text: String, blocks: [ChatServerBlock]? = nil) {
+        self.entry = entry
+        self.text = text
+        self.blocks = blocks
+    }
+
+    /// Реплика из записи снимка: сервер уже подготовил и текст, и разметку.
+    init(entry: SessionJSON, text: String) {
+        self.init(entry: entry,
+                  text: SessionFeed.serverDisplayText(entry) ?? text,
+                  blocks: SessionFeed.serverTextBlocks(entry))
+    }
+}
+
 /// История сессии строками ленты: реплика владельца, ход Помощника
 /// (размышления и шаги — та же полоса «Действия», что в комнате) и ответ.
 enum SessionFeedRow: Identifiable, Equatable {
     case user(id: String, text: String)
     case work(id: String, items: [RoleChatLiveItem])
-    /// `blocks` — разметка ответа от сервера (`text_blocks`), если есть.
-    case reply(id: String, text: String, blocks: SessionJSON?)
+    /// Реплика Помощника: текст и разметка — от сервера (см. `SessionReply`).
+    case reply(id: String, reply: SessionReply)
 
     var id: String {
         switch self {
-        case .user(let id, _), .work(let id, _), .reply(let id, _, _): id
+        case .user(let id, _), .work(let id, _), .reply(let id, _): id
         }
     }
 }
@@ -298,7 +342,7 @@ enum SessionFeed {
                let text = details["text"]?.sessionString, !text.isEmpty {
                 flush()
                 rows.append(details["role"]?.sessionString == "assistant"
-                            ? .reply(id: entryID, text: text, blocks: entry)
+                            ? .reply(id: entryID, reply: SessionReply(entry: entry, text: text))
                             : .user(id: entryID, text: text))
                 continue
             }
@@ -365,7 +409,7 @@ enum SessionFeed {
                 }
                 if !replyText.isEmpty {
                     flush()
-                    rows.append(.reply(id: entryID, text: replyText, blocks: entry))
+                    rows.append(.reply(id: entryID, reply: SessionReply(entry: entry, text: replyText)))
                 }
             }
         }

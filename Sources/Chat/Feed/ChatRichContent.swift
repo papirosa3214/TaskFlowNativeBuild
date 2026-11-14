@@ -170,6 +170,36 @@ extension ChatRichContent {
         return [.document(truncated(blocks, fraction: fraction), chars: shown.count + 1)]
     }
 
+    /// Разметка реплики сессии — одна и та же в живом ходе и в истории.
+    /// Сначала ищем целую запись по тексту (тогда показываем ВСЕ блоки ответа),
+    /// иначе — один блок по началу текста: это хвост, который ещй пишется.
+    static func replySegments(shown: String, scope: String? = nil) -> [ChatRichSegment]? {
+        if let live = ChatLiveBlockRegistry.shared.blocks(for: shown, scope: scope), !live.isEmpty {
+            let blocks = live.map(\.block)
+            // Ключ кэша — содержимое блоков, а не текст: у двух ходов с
+            // одинаковым текстом разметка разная, и общий ключ отдавал одному
+            // ходу блоки другого (тест `ChatLiveBlockScopeTests`).
+            return segments(fromServer: blocks, key: replyCacheKey(blocks))
+        }
+        return liveSegments(shown: shown, scope: scope)?.map { segment in
+            guard case .document(let blocks, let chars) = segment else { return segment }
+            // Частичный абзац не должен занимать кэш полного под тем же id.
+            let visible = blocks.map { block in
+                var hasher = Hasher()
+                hasher.combine(block.id)
+                for run in block.runs { hasher.combine(run.text) }
+                return NoteBlock(id: stableID(hasher.finalize(), 0, 0),
+                                 kind: block.kind, level: block.level, runs: block.runs)
+            }
+            return .document(visible, chars: chars)
+        }
+    }
+
+    /// Ключ кэша готовой реплики — по содержимому блоков.
+    static func replyCacheKey(_ blocks: [ChatServerBlock]) -> String {
+        "reply:" + blocks.map(\.cacheKey).joined(separator: "\u{1}")
+    }
+
     /// Ключ кэша живого куска: тип блока входит в ключ. По одному тексту два
     /// хода с одинаковым текстом, но разной разметкой (документ и виджет)
     /// делили одну запись кэша — и один ответ рисовался блоками другого

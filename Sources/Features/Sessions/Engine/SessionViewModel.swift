@@ -61,6 +61,16 @@ final class SessionViewModel {
     /// снимок целиком вместо пропущенных кусков. Тогда по концу хода текст
     /// берём из снимка, а не оставляем ход с дырой.
     private var liveTurnHasGaps = false
+    /// Курсор, до которого живой ход уже показал ленту. Ход наполняется не
+    /// только ответом на сброс: часть его окна могла быть применена к нему по
+    /// сокету ещё до запроса. Поэтому повтор в сохранённый ход отсекается по
+    /// этому курсору, а не по источнику события (ревью владельца 14.11.2026).
+    private var liveTurnPoint: SessionEventPoint?
+
+    /// Готовый ответ, пришедший событием `message_end`: текст и разметка ровно
+    /// те, что прислал сервер. Нужен, когда живого хода уже нет, — иначе
+    /// готовая реплика осталась бы без разметки и показала заглушку.
+    @ObservationIgnored private var lastEventReply: SessionReply?
     private var sessionGeneration: UInt64 = 0
     /// Очередь установки снимка: ответы не по порядку и события, пришедшие
     /// за время запроса, не должны ни затирать новый снимок, ни пропадать
@@ -75,8 +85,29 @@ final class SessionViewModel {
     /// События открытой сессии, принятые по сокету, пока ответ на сброс в пути
     /// (см. `receive`). Читаются и очищаются в `recoverAfterReconnect`.
     @ObservationIgnored private var reconnectBuffer: [SessionEventEnvelope] = []
-    @ObservationIgnored private var isReconnectFetchInFlight = false
-    /// Потолок очереди — 512, как буфер ленты сервера: длиннее окно не бывает.
+    /// Кто владеет очередью событий, принятых во время догона: сессия и
+    /// уникальный номер запроса. Одного `sessionID` мало: при A→B→A поздний
+    /// ответ старого запроса A считал бы очередь нового A своей, забрал бы
+    /// её и снял бы его флаг, а его `catch` — тем более (ревью владельца
+    /// 14.11.2026).
+    private struct ReconnectFetch: Equatable {
+        let sessionID: String
+        let token: UInt64
+    }
+    @ObservationIgnored private var reconnectFetch: ReconnectFetch?
+    @ObservationIgnored private var reconnectFetchSeq: UInt64 = 0
+    /// Очередь упёрлась в потолок и выбросила передние события: окно уже не
+    /// полное, курсор за эту дыру не двигается (см. `recoverAfterReconnect`).
+    @ObservationIgnored private var reconnectBufferTruncated = false
+    /// Дыра, которую закроет повтор догона (усечённая очередь). Пока она
+    /// есть, догон просит от неё, хотя живые события уже увели `lastCursor`
+    /// вперёд. `eventsLost` сюда не попадает: вытесненное сервером повтором
+    /// не восстановить, и курсор за него не держится (ревью владельца
+    /// 14.11.2026).
+    @ObservationIgnored private var recoveryCursor: String?
+    /// Потолок очереди — 512, как буфер ленты сервера. Упереться в него
+    /// можно и на долгом запросе: тогда окно считается неполным, а не
+    /// молча усечённым.
     private static let reconnectBufferLimit = 512
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
@@ -289,7 +320,13 @@ final class SessionViewModel {
             let id = "live-\(index)-\(message.role)"
             if message.role == "user" { return .user(id: id, text: message.text) }
             if message.role == "assistant", liveTurn.isEmpty, !message.text.isEmpty {
-                return .reply(id: id, text: message.text, blocks: nil)
+                // Разметка — та же, что в истории: текст и блоки из события
+                // сервера (`message_end`). Без неё экран показал бы «Не удалось
+                // получить подготовленное содержимое» вместо самого ответа.
+                let reply = lastEventReply ?? SessionReply(text: message.text)
+                return .reply(id: id, reply: reply.text.isEmpty
+                              ? SessionReply(text: message.text, blocks: reply.blocks)
+                              : reply)
             }
             return nil
         }
@@ -518,8 +555,11 @@ final class SessionViewModel {
         // событие, пришедшее в это время по сокету, в него не входит. Помним
         // такие события — иначе замена состояния снимком их теряет (ревью
         // `7c7b5da0`, владелец 14.11.2026).
-        if isReconnectFetchInFlight, event.sessionId == activeSessionID {
-            if reconnectBuffer.count >= Self.reconnectBufferLimit { reconnectBuffer.removeFirst() }
+        if event.sessionId == reconnectFetch?.sessionID {
+            if reconnectBuffer.count >= Self.reconnectBufferLimit {
+                reconnectBuffer.removeFirst()
+                reconnectBufferTruncated = true
+            }
             reconnectBuffer.append(event)
         }
         // Окно снимка двигает только реально новое событие открытой сессии:
@@ -532,16 +572,40 @@ final class SessionViewModel {
         // прислать его снова) в живой ход не пишем — иначе слова двоятся.
         let isNew = !state.seenCursors.contains(event.cursor)
         if isNew, event.sessionId == activeSessionID {
-            if event.type == "agent_start" { liveTurnHasGaps = false }
+            if event.type == "agent_start" {
+                liveTurnHasGaps = false
+                lastEventReply = nil
+            }
             updateLiveTurnStopState(event)
             liveTurn.apply(type: event.type, payload: event.payload, sessionID: event.sessionId)
+            noteLiveTurnApplied(event)
         }
         SessionReducer.apply(event, to: &state)
+        if event.type == "message_end" { noteEventReply(event) }
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
             Task { await refreshSnapshot() }
         } else if event.sessionId != activeSessionID, event.type == "agent_settled" {
             Task { await refreshSessions() }
         }
+    }
+
+    /// Запомнить готовый ответ из события: в `message_end` сервер присылает
+    /// тот же подготовленный текст и те же блоки, что лежат в снимке. Из них
+    /// рисуется реплика, пока снимок ещй не пришёл.
+    private func noteEventReply(_ event: SessionEventEnvelope) {
+        guard event.sessionId == activeSessionID,
+              let text = event.payload["text"]?.sessionString, !text.isEmpty else { return }
+        lastEventReply = SessionReply(text: text, blocks: SessionLiveTurn.blocks(event.payload["blocks"]))
+    }
+
+    /// Запомнить, до какого курсора живой ход уже показал ленту. Курсор другой
+    /// эпохи — другая лента: он заменяет прежний, а не сравнивается с ним.
+    private func noteLiveTurnApplied(_ event: SessionEventEnvelope) {
+        guard let point = event.eventPoint else { return }
+        if let current = liveTurnPoint, current.epoch == point.epoch, current.seq >= point.seq {
+            return
+        }
+        liveTurnPoint = point
     }
 
     private func updateLiveTurnStopState(_ event: SessionEventEnvelope) {
@@ -555,29 +619,50 @@ final class SessionViewModel {
 
     private func recoverAfterReconnect() async {
         guard let sessionID = activeSessionID else { return }
+        // Второй догон той же сессии не начинаем, пока идёт первый: очередь
+        // событий у них общая, и второй забрал бы куски у первого.
+        guard reconnectFetch?.sessionID != sessionID else {
+            ClientLog.shared.add("session=\(sessionID) recover skipped in-flight")
+            return
+        }
         let generation = sessionGeneration
         do {
-            if let cursor = state.lastCursor {
+            let cursor = SessionReconnectReplay.resumeCursor(
+                lastCursor: state.lastCursor, recovering: recoveryCursor
+            )
+            if let cursor {
                 // Пока ответ в пути, сокет может принести события новее его
                 // снимка: сервер собрал ответ раньше. Собираем их и проигрываем
                 // после снимка — иначе они пропадают (ревью `7c7b5da0`).
                 reconnectBuffer.removeAll()
-                isReconnectFetchInFlight = true
+                reconnectBufferTruncated = false
+                // Уникальный номер запроса: им же проверяется владение
+                // очередью после ответа — одного `sessionID` мало (A→B→A).
+                reconnectFetchSeq &+= 1
+                let fetch = ReconnectFetch(sessionID: sessionID, token: reconnectFetchSeq)
+                reconnectFetch = fetch
                 let payload: SessionReconnectPayload
                 do {
                     payload = try await apiClient.events(sessionID: sessionID, after: cursor)
                 } catch {
-                    isReconnectFetchInFlight = false
+                    if reconnectFetch == fetch { reconnectFetch = nil }
                     throw error
                 }
-                isReconnectFetchInFlight = false
-                let carried = reconnectBuffer
-                reconnectBuffer.removeAll()
+                // Очередь отдаётся только своему запросу: за время ответа
+                // сессия могла смениться и начаться другой догон.
+                let ownsBuffer = reconnectFetch == fetch
+                let carried = ownsBuffer ? reconnectBuffer : []
+                let carriedComplete = ownsBuffer && !reconnectBufferTruncated
+                if ownsBuffer {
+                    reconnectBuffer.removeAll()
+                    reconnectBufferTruncated = false
+                    reconnectFetch = nil
+                }
                 guard activeSessionID == sessionID, sessionGeneration == generation else { return }
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
                 // 13.11.2026: «какие-то слова не допечатываются»).
-                ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired) lost=\(payload.eventsLost)")
+                ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired) lost=\(payload.eventsLost) carried=\(carried.count) truncated=\(!carriedComplete)")
                 if payload.resetRequired {
                     // Состояние заменяется целиком: снимок, запрос которого
                     // начат раньше восстановления, старше его даже без новых
@@ -593,31 +678,68 @@ final class SessionViewModel {
                     let replay = SessionReconnectReplay.events(
                         payload, sessionID: sessionID, carried: carried
                     )
-                    // Лента та же, а голову окна из неё уже вытеснило
-                    // (`eventsLost`): показанный текст сервер прислал сам, а
-                    // стирать его на каждом переподключении нельзя — полный
-                    // текст доедет на `message_end` (контракт сервера).
+                    // Лента та же, а голову окна из неё вытеснило
+                    // (`eventsLost` или потолок очереди): показанный текст
+                    // сервер прислал сам, стирать его на каждом переподключении
+                    // нельзя — полный текст доедет на `message_end`.
                     let point = payload.snapshot?.eventPoint
                     let previousPoint = state.lastCursor.flatMap { SessionEventPoint(cursor: $0) }
-                    let keepsLiveTurn = payload.eventsLost && previousPoint?.epoch == point?.epoch
-                    SessionReducer.apply(payload, replay: replay, to: &state)
+                    // Пересоздать живой ход можно только из снимка. Сброс без
+                    // снимка (или без его точки) — не повод стирать на экране
+                    // уже напечатанный ответ: сначала снимок, потом решение
+                    // (ревью владельца 14.11.2026).
+                    let canRebuildTurn = point != nil
+                    let keepsLiveTurn = !canRebuildTurn
+                        || ((payload.eventsLost || !carriedComplete)
+                            && previousPoint?.epoch == point?.epoch)
+                    // Окно для состояния — всегда целиком: его основа снимок,
+                    // повтор курсором отсекает редьюсер. Живому ходу — только
+                    // то, что он ещё не показал: часть окна HTTP могла быть
+                    // применена к нему по сокету раньше запроса, а от
+                    // известной дыры окно начинается перед концом показанного.
+                    let liveReplay = SessionReconnectReplay.liveEvents(
+                        payload, sessionID: sessionID, carried: carried,
+                        keepingCurrent: keepsLiveTurn, appliedUpTo: liveTurnPoint
+                    )
+                    // Дыра, которую закроет повтор: только усечённая очередь.
+                    // `eventsLost` — данные вытеснены на сервере, курсор за них
+                    // не держим: иначе каждый обрыв просит вытесненную точку и
+                    // снова получает сброс (ревью владельца 14.11.2026).
+                    let recoverableGap = !carriedComplete && !payload.eventsLost
+                    SessionReducer.apply(
+                        payload, replay: replay, replayComplete: !recoverableGap, to: &state
+                    )
+                    recoveryCursor = recoverableGap ? point?.cursor : nil
                     if keepsLiveTurn {
                         liveTurnHasGaps = true
                     } else {
                         liveTurn.reset()
                         liveTurn.bind(sessionID: sessionID)
                         liveTurnHasGaps = false
+                        liveTurnPoint = nil
                     }
-                    for event in replay {
+                    for event in liveReplay {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
+                        noteLiveTurnApplied(event)
+                    }
+                    if keepsLiveTurn, liveReplay.count < replay.count {
+                        // Честно: часть окна новее точки снимка в ход не пошла —
+                        // она не новее уже показанного, и вставка её событий
+                        // после более поздних откатила бы текст назад.
+                        // Пропущенная середина доедет полным текстом в
+                        // `message_end`, а не выдумывается здесь.
+                        ClientLog.shared.add(
+                            "session=\(sessionID) recover kept-turn window=\(replay.count) live=\(liveReplay.count) upTo=\(liveTurnPoint?.cursor ?? "-") skipped=\(replay.count - liveReplay.count) not-reordered"
+                        )
                     }
                     if payload.eventsLost {
-                        // Точку снимка уже вытеснило: головы части хода в ленте
-                        // нет, восстановить её событиями нельзя. Не выдумываем
-                        // данные: остаётся снимок, незавершённый ответ доедет
-                        // целиком на `message_end` (серверный контракт).
-                        ClientLog.shared.add("session=\(sessionID) recover events-lost snapshot-only")
+                        // Честно: голову части хода сервер вытеснил, повтором
+                        // её не вернуть. Остаётся снимок, незавершённый ответ
+                        // доедет целиком на `message_end` (контракт сервера).
+                        ClientLog.shared.add(
+                            "session=\(sessionID) recover gap-evicted not-recovered live=\(liveReplay.count)"
+                        )
                     }
                 } else {
                     // Только реально новые куски открытой сессии: их же кладём
@@ -626,11 +748,22 @@ final class SessionViewModel {
                         payload.events, sessionID: sessionID, seenCursors: state.seenCursors
                     )
                     sessionWindow.noteFresh(fresh.count)
-                    for event in fresh {
+                    // Живому ходу — только не показанное им: запрос мог идти от
+                    // известной дыры, и окно тогда начинается перед концом
+                    // показанного (ревью владельца 14.11.2026). Состояние при
+                    // этом получает всё окно: его отсекает `seenCursors`.
+                    let liveFresh = SessionReconnectReplay.notShownYet(
+                        fresh, appliedUpTo: liveTurnPoint
+                    )
+                    for event in liveFresh {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
+                        noteLiveTurnApplied(event)
                     }
                     SessionReducer.apply(payload, to: &state)
+                    // Запрос шёл от известной дыры (`resumeCursor`): сервер
+                    // отдал всё после неё, значит, дыра закрыта.
+                    recoveryCursor = nil
                 }
                 if state.needsSnapshotReset { await refreshSnapshot() }
             } else {
@@ -709,6 +842,13 @@ final class SessionViewModel {
         if previousSessionID != snapshot.id {
             sessionGeneration &+= 1
             isLiveTurnStopped = false
+            // Очередь и известная дыра принадлежат прежней сессии: к новой
+            // они не относятся, а чужой курсор увёл бы догон в чужую ленту.
+            reconnectBuffer.removeAll()
+            reconnectBufferTruncated = false
+            reconnectFetch = nil
+            recoveryCursor = nil
+            liveTurnPoint = nil
         }
         liveTurn.bind(sessionID: snapshot.id)
         // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
@@ -718,6 +858,7 @@ final class SessionViewModel {
         if !snapshot.isStreaming, liveTurnHasGaps {
             liveTurn.reset()
             liveTurnHasGaps = false
+            liveTurnPoint = nil
         }
         promptMode = snapshot.isStreaming ? .followUp : .prompt
     }

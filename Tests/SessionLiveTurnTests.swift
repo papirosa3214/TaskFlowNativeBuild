@@ -7,23 +7,50 @@ import XCTest
 final class SessionLiveTurnTests: XCTestCase {
     private func obj(_ pairs: [String: JSONValue]) -> JSONValue { .object(pairs) }
 
+    /// Размышление растёт во время хода одной мыслью, а текст её закрывает.
+    /// С 13.11.2026 (`d780aa1c`, тонкий клиент) текст части готовит сервер
+    /// полем `text` вместе с `blocks`: куски `delta` его не складывают.
     @objc func testThinkingDeltasGrowOneThoughtUntilText() {
         var turn = SessionLiveTurn()
         turn.apply(type: "agent_start", payload: [:])
-        turn.apply(type: "assistant_thinking_delta", payload: ["delta": .string("Смотрю ")])
-        turn.apply(type: "assistant_thinking_delta", payload: ["delta": .string("файлы")])
-        guard case .thinking(let running)? = turn.items.first else { return XCTFail("нет размышления") }
-        XCTAssertEqual(turn.items.count, 1)
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Смотрю "), "text": .string("Смотрю ")])
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("файлы"), "text": .string("Смотрю файлы")])
+        XCTAssertEqual(turn.items.count, 1, "куски одной мысли не должны её дублировать")
+        guard turn.items.count == 1, case .thinking(let running) = turn.items[0] else {
+            return XCTFail("нет размышления")
+        }
         XCTAssertEqual(running.text, "Смотрю файлы")
         XCTAssertTrue(running.isRunning)
 
-        turn.apply(type: "assistant_text_delta", payload: ["delta": .string("Гото")])
-        turn.apply(type: "assistant_text_delta", payload: ["delta": .string("во")])
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Гото"), "text": .string("Гото")])
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("во"), "text": .string("Готово")])
         XCTAssertEqual(turn.items.count, 2)
-        guard turn.items.count == 2 else { return XCTFail("пунктов \(turn.items.count), ждали 2") }
-        guard case .thinking(let done) = turn.items[0] else { return XCTFail() }
+        guard turn.items.count == 2, case .thinking(let done) = turn.items[0] else {
+            return XCTFail("нет размышления")
+        }
         XCTAssertFalse(done.isRunning, "текст закрывает размышление")
         XCTAssertEqual(turn.items[1], .text("Готово"))
+    }
+
+    /// Кусок размышления без серверного текста не приклеиваем: показанное
+    /// обязано совпадать с разметкой, иначе экран выдаёт «Не удалось получить
+    /// подготовленное содержимое». Хвост придёт в `message_end`.
+    @objc func testThinkingChunkWithoutServerTextIsNotGlued() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:])
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Смотрю "), "text": .string("Смотрю ")])
+        turn.apply(type: "assistant_thinking_delta", payload: ["delta": .string("файлы")])
+        XCTAssertEqual(turn.items.count, 1)
+        guard turn.items.count == 1, case .thinking(let thought) = turn.items[0] else {
+            return XCTFail("нет размышления")
+        }
+        XCTAssertEqual(thought.text, "Смотрю ", "кусок без разметки сервера не склеиваем")
+        XCTAssertTrue(thought.isRunning)
     }
 
     @objc func testToolStepCarriesCallAndAnswer() {
@@ -101,19 +128,21 @@ final class SessionLiveTurnTests: XCTestCase {
         ]
         let rows = SessionFeed.rows(entries: entries)
         XCTAssertEqual(rows.count, 3)
+        guard rows.count == 3 else { return XCTFail("строк ленты \(rows.count), ждали 3") }
         XCTAssertEqual(rows[0], .user(id: "u1", text: "Привет"))
         guard case .work(_, let items) = rows[1] else { return XCTFail("нет хода") }
         XCTAssertEqual(items.count, 2)
-        guard case .thinking(let thought) = items[0], case .step(let step) = items[1] else { return XCTFail() }
+        guard items.count == 2, case .thinking(let thought) = items[0],
+              case .step(let step) = items[1] else { return XCTFail("пунктов хода \(items.count), ждали 2") }
         XCTAssertEqual(thought.text, "Надо прочитать")
         XCTAssertFalse(thought.isRunning)
         XCTAssertEqual(step.id, "t1")
         XCTAssertEqual(step.detail, "a.md")
         XCTAssertEqual(step.status, .done)
         XCTAssertEqual(step.output, "# A")
-        guard case .reply(let id, let text, _) = rows[2] else { return XCTFail("нет ответа") }
+        guard case .reply(let id, let reply) = rows[2] else { return XCTFail("нет ответа") }
         XCTAssertEqual(id, "a2")
-        XCTAssertEqual(text, "Прочитал")
+        XCTAssertEqual(reply.text, "Прочитал")
     }
 
     /// Модель отвечает текстом и следом тем же ответом конвертом в ```json —
@@ -258,9 +287,9 @@ final class SessionLiveTurnTests: XCTestCase {
             obj(["id": .string("v1"), "type": .string("custom_message"), "customType": .string("taskflow.voice"),
                  "details": obj(["role": .string("assistant"), "text": .string("Сказал")])]),
         ]
-        guard case .reply(let id, let text, _)? = SessionFeed.rows(entries: entries).first else { return XCTFail() }
+        guard case .reply(let id, let reply)? = SessionFeed.rows(entries: entries).first else { return XCTFail() }
         XCTAssertEqual(id, "v1")
-        XCTAssertEqual(text, "Сказал")
+        XCTAssertEqual(reply.text, "Сказал")
     }
 
     // MARK: - Хвост ответа в `message_end` (14.11.2026)
@@ -381,8 +410,9 @@ final class SessionLiveTurnTests: XCTestCase {
         XCTAssertEqual(textItems(turn), ["Первый полностью", "Второй полностью"],
                        "второй текст подменил или потерял первый")
         XCTAssertEqual(turn.items.count, 3, "порядок: ответ, шаг, второй ответ")
-        guard case .text = turn.items[0], case .step = turn.items[1], case .text = turn.items[2] else {
-            return XCTFail("порядок пунктов сломан")
+        guard turn.items.count == 3, case .text = turn.items[0], case .step = turn.items[1],
+              case .text = turn.items[2] else {
+            return XCTFail("порядок пунктов сломан: \(turn.items.count) пунктов")
         }
         guard let scope = turn.scope else { return XCTFail("нет области хода") }
         XCTAssertNotNil(ChatLiveBlockRegistry.shared.blocks(for: "Первый полностью", scope: scope),
@@ -466,5 +496,71 @@ final class SessionLiveTurnTests: XCTestCase {
                              "blocks": replyBlocks("Начало")], sessionID: "s")
         turn.apply(type: "message_end", payload: ["text": .string("Начало и хвост")], sessionID: "s")
         XCTAssertEqual(textItems(turn), ["Начало"], "текст без разметки некуда положить")
+    }
+
+    // MARK: — Одна разметка в живом ходе и в истории (владелец 14.11.2026)
+
+    /// Готовый ответ из нескольких блоков: показываем ВСЕ блоки, а не только
+    /// первый. Прежний поиск «одного блока по началу текста» отдавал лишь
+    /// первую часть — в конце хода виджет и хвост исчезали, историей ответ
+    /// выглядел иначе (`ChatRichContent.replySegments`).
+    @objc func testCompletedReplyKeepsEveryBlock() {
+        let head = "Сейчас покажу сводку."
+        let widget = "```widget\n{\"type\":\"summary\"}\n```"
+        let text = head + "\n\n" + widget
+        let blocks: JSONValue = .array([
+            obj([
+                "type": .string("doc"),
+                "doc": obj([
+                    "type": .string("doc"),
+                    "content": .array([obj([
+                        "type": .string("paragraph"),
+                        "content": .array([obj(["type": .string("text"), "text": .string(head)])]),
+                    ])]),
+                ]),
+                "chars": .number(Double(head.count)),
+                "source": .string(head),
+            ]),
+            obj([
+                "type": .string("widget"),
+                "json": .string("{\"type\":\"summary\"}"),
+                "source": .string(widget),
+            ]),
+        ])
+        XCTAssertTrue(SessionLiveTurn.register(blocks, for: text, scope: "s1"), "разметка не легла в реестр")
+
+        let segments = ChatRichContent.replySegments(shown: text, scope: "s1")
+        XCTAssertEqual(segments?.count, 2, "в готовом ответе должны быть все блоки, включая виджет")
+        guard let segments, segments.count == 2 else { return }
+        guard case .widget = segments[1] else {
+            return XCTFail("второй блок ответа потерялся: \(segments[1])")
+        }
+    }
+
+    /// Незнакомый блок от нового сервера не уносит с собой остальные: раньше
+    /// разбор всего списка падал целиком, текст оставался без разметки и не
+    /// показывался вовсе.
+    @objc func testUnknownBlockDoesNotDropTheRest() {
+        let text = "Ответ"
+        let blocks: JSONValue = .array([
+            obj([
+                "type": .string("doc"),
+                "doc": obj([
+                    "type": .string("doc"),
+                    "content": .array([obj([
+                        "type": .string("paragraph"),
+                        "content": .array([obj(["type": .string("text"), "text": .string(text)])]),
+                    ])]),
+                ]),
+                "chars": .number(Double(text.count)),
+                "source": .string(text),
+            ]),
+            // Виджет без `json` и без известного `component`: такой блок
+            // приложение разобрать не может.
+            obj(["type": .string("widget"), "source": .string("```widget\n{}\n```")]),
+        ])
+        XCTAssertTrue(SessionLiveTurn.register(blocks, for: text, scope: "s2"),
+                      "годный блок должен остаться, а не пропасть вместе с чужим")
+        XCTAssertEqual(ChatLiveBlockRegistry.shared.blocks(for: text, scope: "s2")?.count, 1)
     }
 }

@@ -226,10 +226,10 @@ private struct SessionLiveItemsContent: View {
                 let text = rawText
                 // Показ перевода (владелец 20.10.2026, вернули 08.11.2026:
                 // рефакторинг 07.11 выкинул `display`, и кнопка переключала
-                // только флаг). Готовые куски — переводом, остальное — как есть.
-                let shown = RoleTranslator.shared.display(text)
-                RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  prepared: shown == text ? SessionLiveReplyContent.prepared(shown: text, scope: scope) : nil)
+                // только флаг). Перевод применяет общий вид ответа.
+                SessionReplyMarkdown(text: text,
+                                     segments: SessionLiveReplyContent.prepared(shown: text, scope: scope),
+                                     color: textColor, fade: fade, isStreaming: isStreaming)
             case .step(let step) where SessionOwnerQuestion.question(in: step) != nil:
                 // Вопрос Помощника владельцу — карточкой с вариантами (сервер 4b774d50).
                 // Ответ меняет запись вопроса, ход продолжается с ним.
@@ -899,9 +899,46 @@ private struct SessionRoleCallRow: View {
 /// проявленной доле. Поиск по точному тексту реплики находил только ответ из
 /// одного блока, а ответ из нескольких блоков вставал заглушкой «Не удалось
 /// получить подготовленное содержимое» (владелец 14.11.2026).
+/// Уточнение 14.11.2026: сначала берём ЦЕЛУЮ запись по тексту (все блоки
+/// ответа), иначе — один блок по началу (хвост, который ещё пишется). Одна и
+/// та же функция обслуживает живой ход и историю.
+/// Текст и блоки берутся у сервера (`display_text`/`text_blocks` в снимке,
+/// `text`/`blocks` в `message_end`): телефон не раскладывает текст заново,
+/// поэтому одна и та же реплика в живом ходе и после перезахода выглядит
+/// одинаково.
 enum SessionLiveReplyContent {
+    /// Целая реплика: все блоки, как их прислал сервер (текст, таблицы,
+    /// виджеты…).
+    static func prepared(text: String, blocks: [ChatServerBlock]?) -> [ChatRichSegment]? {
+        guard let blocks, !blocks.isEmpty else { return nil }
+        return ChatRichContent.segments(fromServer: blocks, key: ChatRichContent.replyCacheKey(blocks))
+    }
+
+    /// Живой ход и история: одна и та же разметка из серверных блоков.
     static func prepared(shown: String, scope: String? = nil) -> [ChatRichSegment]? {
-        ChatRichContent.liveSegments(shown: shown, scope: scope)
+        ChatRichContent.replySegments(shown: shown, scope: scope)
+    }
+}
+
+/// Ответ сессии на экране — одна точка отрисовки для живого хода и истории.
+struct SessionReplyMarkdown: View {
+    let text: String
+    /// Разметка сервера для этого текста (nil — сервер её не прислал).
+    var segments: [ChatRichSegment]? = nil
+    var color: Color = .tfChatText
+    var fade: RoleTextFade? = nil
+    var isStreaming: Bool = false
+
+    var body: some View {
+        // Разметки нет — показываем сам текст (с переводом, если он включён),
+        // а не заглушку «Не удалось получить подготовленное содержимое».
+        let shown = segments == nil ? RoleTranslator.shared.display(text) : text
+        RoleReplyMarkdown(text: shown, color: color, fade: fade, isStreaming: isStreaming,
+                          prepared: segments ?? Self.plainText(shown))
+    }
+
+    private static func plainText(_ text: String) -> [ChatRichSegment] {
+        [.document([NoteBlock(kind: .paragraph, runs: [RichRun(text: text)])], chars: text.count)]
     }
 }
 
