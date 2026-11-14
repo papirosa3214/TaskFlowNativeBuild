@@ -588,8 +588,12 @@ private struct OwnerSessionReply: View {
         VStack(alignment: .leading, spacing: TFSpacing.md) {
             RoleReplyMarkdown(text: SessionFeed.serverDisplayText(entry) ?? text,
                               serverBlocks: SessionFeed.serverTextBlocks(entry))
-            if let extras = SessionFeed.serverEnvelopeExtras(entry) {
-                ChatStructuredOutputView(json: extras, isStreaming: false)
+            // Одно серверное представление ответа (владелец 14.11.2026):
+            // текст, таблица, виджет и HTML уже в блоках — конверт вторым
+            // слоем больше не рисуется целиком, из него остаются файлы и
+            // подсказка (`SessionFeed.serverEnvelopeSecondLayer`).
+            if let tail = SessionFeed.serverEnvelopeSecondLayer(entry) {
+                ChatStructuredOutputView(json: tail, isStreaming: false)
             }
         }
     }

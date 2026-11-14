@@ -559,6 +559,33 @@ enum SessionFeed {
         return Array(list.compactMap { $0 as? String }.prefix(3))
     }
 
+    /// Второй слой ответа — только то, чего нет в `text_blocks`.
+    ///
+    /// Тонкий клиент (владелец 13.11.2026): текст, таблицы, виджеты, HTML и
+    /// команды сервер собирает в `text_blocks` тем же разбором, что ответ роли
+    /// (`structuredOutputText` → `chatBlocksCached`). Поэтому конверт целиком
+    /// ко второму слою не годится: его таблица уже напечатана в блоках и
+    /// появлялась дважды (владелец 14.11.2026, скрин IMG_9652). Из конверта
+    /// остаются файлы (`artifacts`) и подсказка/вопрос — их в блоках нет.
+    /// Запись без `text_blocks` (старый сервер) получает конверт как раньше,
+    /// иначе пропали бы таблица и виджет.
+    static func serverEnvelopeSecondLayer(_ entry: SessionJSON?) -> String? {
+        guard serverTextBlocks(entry) != nil else { return serverEnvelopeExtras(entry) }
+        guard case .object(let o)? = entry,
+              var envelope = o["role_envelope"]?.foundationValue as? [String: Any] else { return nil }
+        let artifacts = envelope["artifacts"] as? [Any] ?? []
+        let hint = (envelope["next_hint"] as? String)?.isEmpty == false
+        let needsHuman = (envelope["needs_human"] as? Bool) ?? false
+        guard !artifacts.isEmpty || hint || needsHuman else { return nil }
+        // Тело ответа и карточка ошибки живут в `text_blocks`; здесь пусто,
+        // иначе второй раз печатается тот же ответ.
+        envelope["output"] = []
+        envelope["ok"] = true
+        envelope.removeValue(forKey: "error")
+        guard let data = try? JSONSerialization.data(withJSONObject: envelope) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     static func serverEnvelopeExtras(_ entry: SessionJSON?) -> String? {
         guard case .object(let o)? = entry, var envelope = o["role_envelope"]?.foundationValue as? [String: Any] else { return nil }
         let output = (envelope["output"] as? [[String: Any]] ?? []).filter { ($0["type"] as? String) != "text" }
