@@ -66,9 +66,12 @@ final class SessionViewModel {
     /// за время запроса, не должны ни затирать новый снимок, ни пропадать
     /// (`SessionSnapshotGate`).
     @ObservationIgnored private var snapshotGate = SessionSnapshotGate()
-    /// Сколько событий открытой сессии легло в состояние: по этой метке
-    /// видно, опустело ли окно запроса снимка.
-    @ObservationIgnored private var appliedEventMark: UInt64 = 0
+    /// Окно снимка: сколько событий открытой сессии легло в состояние —
+    /// снимок ставится только при пустом окне (`SessionSnapshotGate`). Метку
+    /// двигают все пути, которые меняют состояние: живые события и догнанные
+    /// после переподключения, включая замену по `resetRequired`
+    /// (`SessionEventWindow`).
+    @ObservationIgnored private var sessionWindow = SessionEventWindow()
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
@@ -336,12 +339,7 @@ final class SessionViewModel {
     /// Перечитать снимок сессии (после голосового разговора реплики голоса
     /// пишет сервер мимо потока событий).
     func refresh() async {
-        guard let id = activeSessionID else { return }
-        let generation = sessionGeneration
-        guard let response = try? await apiClient.snapshot(sessionID: id),
-              activeSessionID == id, sessionGeneration == generation,
-              response.session.id == id else { return }
-        installSnapshot(response.session)
+        await refreshSnapshot()
     }
 
     func reload() async {
@@ -456,13 +454,27 @@ final class SessionViewModel {
 
     func abort() async {
         guard let sessionID = activeSessionID else { return }
+        let generation = sessionGeneration
+        let turnScope = liveTurn.scope
+        let wasStreaming = isStreaming
         let requestID = UUID().uuidString
         do {
-            _ = try await apiClient.abort(
+            let response = try await apiClient.abort(
                 sessionID: sessionID,
                 request: AbortSessionRequest(requestId: requestID)
             )
+            guard activeSessionID == sessionID, sessionGeneration == generation else { return }
+            // Ответ приходит после остановки сервера. Не закрываем новый ход,
+            // если он успел начаться, пока запрос был в пути.
+            if response.aborted == true, wasStreaming,
+               let turnScope, liveTurn.scope == turnScope {
+                state.snapshot?.isStreaming = false
+                state.snapshot?.isIdle = true
+                isLiveTurnStopped = true
+            }
+            await refreshSnapshot()
         } catch {
+            guard activeSessionID == sessionID, sessionGeneration == generation else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -496,7 +508,11 @@ final class SessionViewModel {
     }
 
     private func receive(_ event: SessionEventEnvelope) {
-        if event.sessionId == activeSessionID { appliedEventMark &+= 1 }
+        // Окно снимка двигает только реально новое событие открытой сессии:
+        // повтор уже принятого куска состояние не меняет, а сервер после
+        // переподключения пересылает хвост заново — на повторах сгорали бы
+        // обе попытки установки снимка.
+        sessionWindow.noteLive(event, activeSessionID: activeSessionID, seenCursors: state.seenCursors)
         recordActivity(event)
         // Повтор уже принятого куска (после переподключения сервер может
         // прислать его снова) в живой ход не пишем — иначе слова двоятся.
@@ -535,8 +551,20 @@ final class SessionViewModel {
                 // 13.11.2026: «какие-то слова не допечатываются»).
                 ClientLog.shared.add("session=\(sessionID) recover events=\(payload.events.count) reset=\(payload.resetRequired)")
                 if payload.resetRequired, !liveTurn.isEmpty { liveTurnHasGaps = true }
-                if !payload.resetRequired {
-                    for event in payload.events where !state.seenCursors.contains(event.cursor) && event.sessionId == sessionID {
+                if payload.resetRequired {
+                    // Состояние заменяется целиком: снимок, запрос которого
+                    // начат раньше восстановления, старше его даже без новых
+                    // событий — иначе он ложится поверх с сохранёнными
+                    // `seenCursors`, и догнанное событие пропадает навсегда.
+                    sessionWindow.noteReset()
+                } else {
+                    // Только реально новые куски открытой сессии: их же кладём
+                    // в живой ход и ими же закрываем окно снимка.
+                    let fresh = SessionEventWindow.freshEvents(
+                        payload.events, sessionID: sessionID, seenCursors: state.seenCursors
+                    )
+                    sessionWindow.noteFresh(fresh.count)
+                    for event in fresh {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
                     }
@@ -559,12 +587,12 @@ final class SessionViewModel {
         // отбрасывается и запрашивается заново, уже на опустевшем окне
         // (правило «пустое окно» — в `SessionSnapshotGate`).
         for attempt in 1...2 {
-            let ticket = snapshotGate.begin(windowMark: appliedEventMark)
+            let ticket = snapshotGate.begin(windowMark: sessionWindow.mark)
             do {
                 let response = try await apiClient.snapshot(sessionID: sessionID)
                 guard activeSessionID == sessionID, sessionGeneration == generation,
                       response.session.id == sessionID else { return }
-                switch snapshotGate.verdict(ticket, windowMark: appliedEventMark) {
+                switch snapshotGate.verdict(ticket, windowMark: sessionWindow.mark) {
                 case .install:
                     snapshotGate.markInstalled(ticket)
                     installSnapshot(response.session, preservingCursor: true)
@@ -585,6 +613,11 @@ final class SessionViewModel {
                 return
             }
         }
+        // Обе попытки попали в окно с событиями: снимок не ставится, но
+        // состояние — живое, из самих событий (`agent_settled` в редьюсере
+        // снимает `isStreaming`, так что «Стоп» не залипает). Запись в журнал:
+        // без неё видно только «снимок почему-то не пришёл».
+        ClientLog.shared.add("session=\(sessionID) snapshot=window-dirty-give-up")
     }
 
     private func refreshSessions() async {
