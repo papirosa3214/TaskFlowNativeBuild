@@ -16,7 +16,7 @@
 | `Sources/App/` | точка входа, корневая навигация, таббар |
 | `Sources/DesignSystem/` | `Theme` (токены), `Components`, `Navigation` |
 | `Sources/Core/` | `Models`, `Networking`, `Realtime`, `Session`, `Store`, `Stores`, `Speech`, `Text`, `Common` + файлы в корне (Live Activity, удержание фона, диагностика, журнал клиента) |
-| `Sources/Chat/` | чат с ролями: `Composer`, `Feed`, `Output`, `Panels`, `Shared`, `Widgets` |
+| `Sources/Chat/` | общие виды чата обеих сторон — и комнаты роли, и сессий: `Composer`, `Feed`, `Output`, `Panels`, `Shared`, `Widgets`. Это не «папка ролей»: сессии берут отсюда разметку, поле ввода, пилюлю, шторку выделения и значок прерывания (см. «Общие компоненты» ниже) |
 | `Sources/Features/<Экран>/` | по папке на экран: `Activity`, `Coordination`, `Inbox`, `Knowledge`, `Markdown`, `Missions`, `Overview`, `Planner`, `Projects`, `Roles`, `Routines`, `Secretary`, `ServiceNotifications`, `Sessions`, `Settings`, `Tasks` |
 | `Resources/` | Assets.xcassets, Info.plist, entitlements, шрифты |
 | `Widgets/` | виджеты и Live Activity |
@@ -58,8 +58,11 @@
 
 В приложении два независимых потока чата, и они развиваются **раздельно**.
 Комната роли (`RoleChatRoomScreen`) — прежний чат с ролями. Сессия
-(`OwnerSessionScreen`) — новый чат-сессия, вход в списке помечен «Сессии
-(бета)»: `Sources/Features/Roles/RoleChatsScreen.swift:221-226`.
+(`OwnerSessionScreen`) — новый чат-сессия. Включается пунктом меню «Новые
+сессии (бета)»: `Sources/Features/Roles/RoleChatsScreen.swift:198-199`
+(`@AppStorage("chats.ownerSessions")`, флаг `ownerSessionsBeta` :78); список
+показывается разделом «Сессии» (`:630`, `:714`), переход на экран —
+`:221-226`.
 
 Правило владельца: решения одной стороны можно брать за образец и копировать,
 но **потоки не объединять** до отдельного решения. Работа над сессиями не
@@ -99,9 +102,15 @@
 | Компонент | Кто использует | Что сломается при правке |
 | --- | --- | --- |
 | `Sources/Core/Models/ChatServerBlock.swift:92` `ChatLiveBlockRegistry` | обе стороны | ключ — текст **и** область: роли область не передают (`nil`), сессии — `ChatLiveTurnIdentity.scope`. Смена правил ключа смешает или спрячет разметку у обеих сторон |
-| `Sources/Core/Models/ChatServerBlock.swift:150` `ChatLiveTurnIdentity` | сессии | область хода `"turn:<номер>"` выдаётся один раз; возврат к сессии/времени вернёт смешивание двух ходов |
+| `Sources/Core/Models/ChatServerBlock.swift:150` `ChatLiveTurnIdentity` | сессии | область хода — `` `"turn:" + token` `` (:163), где `token` по умолчанию `UUID().uuidString.lowercased()` (:157) и выдаётся один раз на ход. Нумерации ходов нет: «номер» в старых записях — это и есть UUID-токен. Замена области на `sessionID`/`startedAt` вернёт смешивание двух ходов |
 | `Sources/Chat/Feed/ChatRichContent.swift:54`, `:165`, `:182` | обе стороны | `segments(fromServer:key:)` и `liveSegments` кэшируют разбор по `cacheKey`; ослабление ключа — чужой ответ нарисован разметкой другого |
 | `Sources/Chat/Output/RoleReplyMarkdown.swift:3` | обе стороны и ещё больше 30 мест | рисует **только** подготовленные сервером блоки. `readableText` закреплён решением владельца 17–25.10.2026 (`LOCK-CHAT-WINDOW-BEHAVIOUR-20261025`): менять начертание нельзя |
+| `Sources/Chat/Output/ChatComposerPill.swift:9` | обе стороны: роли `Sources/Features/Roles/RoleChatRoomScreen.swift:609`, сессии `Sources/Features/Sessions/OwnerSessionScreen.swift:194` | общий ряд над полем ввода: сегменты хода, плана и «Стоп», кружок «вниз». Вид сессий включается параметрами (`workingWordSeed`, `showsScrollDown`), поэтому смена поведения по умолчанию задевает обе стороны |
+| `Sources/Chat/Composer/ChatVoiceComposer.swift:23` | обе стороны: роли `Sources/Features/Roles/RoleChatRoomScreen.swift:678`, сессии `Sources/Features/Sessions/OwnerSessionScreen.swift:428` | само поле ввода (скрепка/плюс, микрофон, отправка) и `sessionLook` для сессий. Правка вида или клавиатурных кнопок видна в обоих чатах |
+| `Sources/Chat/Composer/RoleChatVoiceController.swift:7` | обе стороны: роли `Sources/Features/Roles/RoleChatRoomScreen.swift:48`, сессии `Sources/Features/Sessions/OwnerSessionScreen.swift:31`; свой экземпляр и внутри `ChatVoiceComposer.swift:693` | запись голоса и распознавание Parakeet. У каждого экрана свой экземпляр; общий мост — смена фаз/ошибок проявится сразу в двух чатах |
+| `Sources/Chat/Output/RoleQuestionCard.swift:11` | роли `Sources/Features/Roles/RoleChatRoomScreen.swift:2212`, сессии `Sources/Features/Sessions/SessionLiveTurnView.swift:236`, «Внимание» `Sources/Features/Inbox/AttentionScreen.swift:108` | карточка уточнения. Три места, у «Внимания» — `nativePresentation`; правка формы меняет все три |
+| `Sources/Chat/Feed/SelectableTextSheet.swift:8` | обе стороны: роли `Sources/Features/Roles/RoleChatRoomScreen.swift:760`, сессии `Sources/Features/Sessions/OwnerSessionScreen.swift:251` | «Выделить текст» в меню сообщения: системное выделение с ручками и «Скопировать». Правка задевает меню обеих сторон |
+| `Sources/Chat/Feed/ChatInterruptionBadge.swift:6` | обе стороны: роли `Sources/Features/Roles/RoleChatRoomScreen.swift:2468`, сессии `Sources/Features/Sessions/OwnerSessionScreen.swift:501`; галерея виджетов `Sources/Chat/Widgets/WidgetStateGalleryScreen.swift:65` | значок недописанного ответа («Ответ прерван…», `chat.interrupted`). Общая причина берётся из `stopReason`; смена подписи или цвета видна у обеих сторон |
 | `Sources/Features/Roles/RoleLiveTurnView.swift:146`, `:399`, `:556`; `RoleThinkingWindow` :743; `RoleLiveBlocks` :1203 | роли; сессии держат копию `Sources/Features/Sessions/SessionLiveTurnView.swift` | общего рефакторинга нет: правка «как у ролей» без такой же правки копии разводит стороны, а слияние копий — это и есть объединение потоков |
 | `Sources/Chat/Feed/ChatFeedVirtualList.swift`, `Sources/Chat/Feed/ChatFeedScrollPolicy.swift` | роли — виртуальная лента; сессии — `ScrollView` + только политика низа | виртуальная лента ролей и обычная лента сессий имеют разную механику прокрутки |
 | `Sources/Core/Store/LocalStore.swift`, `Sources/Core/Store/ChatCacheRow.swift` | только роли | правка кеша видна ролям; сессий она не касается — не считать это общей основой |
@@ -117,7 +126,8 @@
 
 Разбор ответа (таблицы, виджеты, конверт JSON v1, карточки) делает сервер; телефон
 только раскладывает пришедшие `text_blocks` и рисует. Правило владельца
-13.11.2026 — `CLAUDE.md` §«Тонкий клиент без нагрева (не менять)». Добавлять
+13.11.2026 — `CLAUDE.md` §«Тонкий клиент без нагрева — правило владельца 13.11.2026
+(не менять)». Добавлять
 разбор Markdown/HTML на клиенте, «дорисовывать» блоки из сырого текста или
 обходить отсутствие блоков локальным парсером нельзя: экран показывает
 `Не удалось получить подготовленное содержимое` — это признак потери серверной
