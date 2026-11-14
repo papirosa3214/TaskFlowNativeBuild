@@ -41,6 +41,7 @@ final class SessionViewModel {
     /// Идущий ход в модели хода роли — для живой ленты как в старой комнате.
     private(set) var liveTurn = SessionLiveTurn()
     private(set) var isLoading = false
+    private(set) var isLiveTurnStopped = false
     private(set) var models: [RuntimeModel] = []
     private(set) var isLoadingModels = false
     /// Ошибка каталога моделей не всплывает баннером: она нужна только в шторке
@@ -490,6 +491,7 @@ final class SessionViewModel {
         let isNew = !state.seenCursors.contains(event.cursor)
         if isNew, event.sessionId == activeSessionID {
             if event.type == "agent_start" { liveTurnHasGaps = false }
+            updateLiveTurnStopState(event)
             liveTurn.apply(type: event.type, payload: event.payload, sessionID: event.sessionId)
         }
         SessionReducer.apply(event, to: &state)
@@ -497,6 +499,15 @@ final class SessionViewModel {
             Task { await refreshSnapshot() }
         } else if event.sessionId != activeSessionID, event.type == "agent_settled" {
             Task { await refreshSessions() }
+        }
+    }
+
+    private func updateLiveTurnStopState(_ event: SessionEventEnvelope) {
+        if event.type == "agent_start" {
+            isLiveTurnStopped = false
+        } else if event.type == "agent_settled" {
+            if case .bool(true)? = event.payload["aborted"] { isLiveTurnStopped = true }
+            else { isLiveTurnStopped = false }
         }
     }
 
@@ -512,6 +523,7 @@ final class SessionViewModel {
                 if payload.resetRequired, !liveTurn.isEmpty { liveTurnHasGaps = true }
                 if !payload.resetRequired {
                     for event in payload.events where !state.seenCursors.contains(event.cursor) && event.sessionId == sessionID {
+                        updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
                     }
                 }
@@ -545,6 +557,7 @@ final class SessionViewModel {
     }
 
     private func installSnapshot(_ snapshot: SessionSnapshot, preservingCursor: Bool = false) {
+        let previousSessionID = activeSessionID
         let cursor = preservingCursor ? state.lastCursor : nil
         let seen = preservingCursor ? state.seenCursors : []
         let childActivity = state.childActivity
@@ -559,6 +572,7 @@ final class SessionViewModel {
         // Ход принадлежит открытой сессии: живая разметка читается только
         // своим ходом, даже если два ответа совпали текстом (владелец 14.11.2026).
         // Другая сессия — другой ход: элементы и область прежнего сбрасываются.
+        if previousSessionID != snapshot.id { isLiveTurnStopped = false }
         liveTurn.bind(sessionID: snapshot.id)
         // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
         // остаётся на экране как есть, без подмены записями снимка (владелец

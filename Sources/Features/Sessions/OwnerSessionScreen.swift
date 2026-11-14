@@ -104,7 +104,7 @@ struct OwnerSessionScreen: View {
                         // текст проявляется по словам, шаги встают по мере вызова.
                         SessionLiveTurnBubble(turn: liveRoleTurn, showsName: false,
                                            scope: model.liveTurn.scope,
-                                           isComplete: !model.isStreaming, pacesText: true,
+                                           isComplete: !model.isStreaming, isStopped: model.isLiveTurnStopped, pacesText: true,
                                            expansionRow: Self.liveTurnID, expansion: feedExpansion)
                             .id(Self.liveTurnID)
                     }
