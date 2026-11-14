@@ -13,14 +13,14 @@ import UniformTypeIdentifiers
 enum SafePasteboard {
     /// Положить секрет в буфер, не выпуская его с устройства.
     ///
-    /// `expireDate` — чтобы значение не лежало в буфере бессрочно: спустя
+    /// `expirationDate` — чтобы значение не лежало в буфере бессрочно: спустя
     /// две минуты система его сама выбросит.
     static func copySecret(_ value: String) {
         UIPasteboard.general.setItems(
             [[UTType.utf8PlainText.identifier: value]],
             options: [
                 .localOnly: true,
-                .expireDate: Date().addingTimeInterval(120),
+                .expirationDate: Date().addingTimeInterval(120),
             ]
         )
     }
