@@ -22,23 +22,38 @@ public struct TFScreenBackgroundModifier: ViewModifier {
     /// Цвет подложки. По умолчанию фон приложения; отличается только у
     /// экранов с намеренно иной подложкой (снимок в `LiveWindowRecheck`).
     private let color: Color
+    /// Картинка-фон поверх подложки (владелец 15.11.2026). `nil` — ровный цвет.
+    private let art: TFScreenArt?
     @Environment(\.tfInSheet) private var inSheet
 
-    public init(color: Color = .tfBackground) {
+    public init(color: Color = .tfBackground, art: TFScreenArt? = nil) {
         self.color = color
+        self.art = art
     }
 
     public func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
-            .background(inSheet && color == .tfBackground ? Color.clear : color)
+            .background {
+                if inSheet && color == .tfBackground {
+                    Color.clear
+                } else if let art {
+                    ZStack {
+                        color
+                        TFScreenArtLayer(art)
+                    }
+                } else {
+                    color
+                }
+            }
     }
 }
 
 public extension View {
     /// Фон приложения под списком/формой. См. `TFScreenBackgroundModifier`.
-    func tfScreenBackground(_ color: Color = .tfBackground) -> some View {
-        modifier(TFScreenBackgroundModifier(color: color))
+    /// `art:` — картинка-фон экрана (владелец 15.11.2026).
+    func tfScreenBackground(_ color: Color = .tfBackground, art: TFScreenArt? = nil) -> some View {
+        modifier(TFScreenBackgroundModifier(color: color, art: art))
     }
 }
 

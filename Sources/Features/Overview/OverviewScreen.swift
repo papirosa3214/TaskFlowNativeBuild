@@ -44,7 +44,7 @@ struct OverviewScreen: View {
                 }
         )
         .task { await loadRowValues() }
-        .tfScreenBackground()
+        .tfScreenBackground(art: .overview)
         // Штатная SwiftUI-шапка. Кнопка поиска переехала из
         // самодельного TFScreenHeader в `.toolbar { .topBarTrailing }` —
         // дубль заголовка «Обзор» (системный + наш поверх) ушёл.

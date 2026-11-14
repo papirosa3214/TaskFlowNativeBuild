@@ -87,7 +87,7 @@ struct AttentionScreen: View {
             .padding(.vertical, TFSpacing.md)
         }
         .tfNativeHeader("Входящие", displayMode: .large)
-        .tfScreenBackground()
+        .tfScreenBackground(art: .inbox)
         .tint(Color.tfText)
         .hintAnchor(HintAnchorID.inboxTickets)
         .refreshable { await model.load() }
