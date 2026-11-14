@@ -105,6 +105,9 @@ struct SessionLiveItemsList: View {
     /// предпросмотры): вью живёт, пока её не пересоберут, раскрытие не теряется.
     @StateObject private var ownExpansion = RoleFeedExpansion()
     @State private var detail: SessionLiveDetail?
+    /// Область живой разметки: у сессии — свой ход, у остальных вызовов — nil.
+    /// Без неё два ответа с одинаковым текстом брали чужие блоки.
+    var scope: String? = nil
     @AppStorage(RoleWorkDetailLevel.storageKey) private var detailLevel = RoleWorkDetailLevel.standard
 
     var body: some View {
@@ -118,7 +121,7 @@ struct SessionLiveItemsList: View {
                              isStreaming: isStreaming, stepDetailLoader: stepDetailLoader,
                              showsActionPreview: showsActionPreview, ungrouped: ungrouped,
                              expansionRow: expansionRow, store: expansion ?? ownExpansion,
-                             detail: $detail, detailLevel: detailLevel)
+                             detail: $detail, detailLevel: detailLevel, scope: scope)
     }
 }
 
@@ -139,6 +142,8 @@ private struct SessionLiveItemsContent: View {
     @ObservedObject var store: RoleFeedExpansion
     @Binding var detail: SessionLiveDetail?
     var detailLevel: RoleWorkDetailLevel
+    /// Область реестра блоков этого хода (nil — общая, как у ролей и истории).
+    var scope: String? = nil
 
     var body: some View {
         let visible = detailLevel.visible(items)
@@ -175,7 +180,7 @@ private struct SessionLiveItemsContent: View {
             }
         }
         .tfSheet(item: $detail) { detail in
-            SessionLiveDetailSheet(detail: detail)
+            SessionLiveDetailSheet(detail: detail, scope: scope)
         }
         .roleTranslationRequests(finishedTexts)
         // Каждый вставший блок — лёгкий тык (владелец 11.11.2026:
@@ -224,7 +229,7 @@ private struct SessionLiveItemsContent: View {
                 // только флаг). Готовые куски — переводом, остальное — как есть.
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  prepared: shown == text ? SessionLiveReplyContent.prepared(shown: text) : nil)
+                                  prepared: shown == text ? SessionLiveReplyContent.prepared(shown: text, scope: scope) : nil)
             case .step(let step) where SessionOwnerQuestion.question(in: step) != nil:
                 // Вопрос Помощника владельцу — карточкой с вариантами (сервер 4b774d50).
                 // Ответ меняет запись вопроса, ход продолжается с ним.
@@ -267,7 +272,7 @@ private struct SessionLiveItemsContent: View {
                     // индикатор работы — в пилюле над полем ввода); остаётся
                     // только строка с текстом размышления, если он пришёл.
                     if !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        SessionThinkingLiveRow(thinking: thinking, startsExpanded: expanded)
+                        SessionThinkingLiveRow(thinking: thinking, startsExpanded: expanded, scope: scope)
                     }
                 } else {
                     Button { detail = .thinking(thinking) } label: {
@@ -278,7 +283,7 @@ private struct SessionLiveItemsContent: View {
                     .buttonStyle(.plain)
                     .accessibilityHint("Показать размышления")
                     if expanded, !thinking.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        SessionThinkingWindow(text: thinking.text)
+                        SessionThinkingWindow(text: thinking.text, scope: scope)
                     }
                 }
             }
@@ -359,6 +364,10 @@ private struct SessionItemAppearance: ViewModifier {
 struct SessionLiveTurnBubble: View {
     let turn: RoleChatLiveTurn
     let showsName: Bool
+    /// Область реестра блоков: сессия + начало хода. Регистрация и чтение
+    /// берут одну и ту же строку `SessionLiveTurn.scope`, поэтому разметка
+    /// одного хода не видна другому (владелец 14.11.2026).
+    var scope: String? = nil
     var isComplete = false
     /// Ответ закрыт остановкой: подпись «Ответ получен» была бы неправдой
     /// (владелец 30.10.2026 — ход прерван его же уточнением).
@@ -393,7 +402,8 @@ struct SessionLiveTurnBubble: View {
                                   isStreaming: !isComplete,
                                   showsActionPreview: true,
                                   expansionRow: expansionRow,
-                                  expansion: expansion)
+                                  expansion: expansion,
+                                  scope: scope)
             }
             // Сервер до 30.09.2026 шлёт только признак «думает» без текста.
             // С 11.11.2026 индикатор без текста из ленты убран — он в пилюле.
@@ -475,7 +485,7 @@ struct SessionLiveTurnBubble: View {
         if !driver.isAnimating(now: .now) { driver.resetClock() }
         // Скрытые шаги в очередь не идут: иначе текст вставал бы на паузу
         // перед действием, которого в «Минимуме» не видно.
-        driver.pacer.ingest(detailLevel.visible(items), isFinal: isComplete)
+        driver.pacer.ingest(detailLevel.visible(items), isFinal: isComplete, scope: scope)
         if isComplete {
             completionReported = false
             driver.pacer.finish()
@@ -515,12 +525,15 @@ struct SessionLiveTurnBubble: View {
 @MainActor
 
 struct SessionThinkingLiveRow: View {
+    /// Область живого хода — чтобы окно размышлений взяло блоки своего хода.
+    var scope: String? = nil
     /// nil — сервер прислал только признак «думает».
     let thinking: RoleChatThinking?
     @State private var isExpanded: Bool
 
     /// `startsExpanded` — уровень «Подробно»: окошко с мыслями открыто сразу.
-    init(thinking: RoleChatThinking?, startsExpanded: Bool = false) {
+    init(thinking: RoleChatThinking?, startsExpanded: Bool = false, scope: String? = nil) {
+        self.scope = scope
         self.thinking = thinking
         _isExpanded = State(initialValue: startsExpanded)
     }
@@ -556,7 +569,7 @@ struct SessionThinkingLiveRow: View {
             .accessibilityHint(hasText ? (isExpanded ? "Скрыть размышления" : "Показать размышления") : "")
 
             if isExpanded, let thinking, hasText {
-                SessionThinkingWindow(text: thinking.text)
+                SessionThinkingWindow(text: thinking.text, scope: scope)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -571,6 +584,8 @@ struct SessionThinkingLiveRow: View {
 
 struct SessionThinkingWindow: View {
     let text: String
+    /// Область реестра блоков: размышление ищет разметку только своего хода.
+    var scope: String? = nil
     @State private var contentHeight: CGFloat = 0
 
     private static let maxHeight: CGFloat = 132
@@ -584,7 +599,7 @@ struct SessionThinkingWindow: View {
                 // `код` и **жирное** — ярче приглушённого текста, чтобы главное
                 // сразу бросалось в глаза (владелец 14.10.2026, по образцу).
                 RoleReplyMarkdown(text: text, color: .tfSub,
-                                  serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block),
+                                  serverBlocks: ChatLiveBlockRegistry.shared.blocks(for: text, scope: scope)?.map(\.block),
                                   textGroup: .thinking)
                     .italic()
                     .foregroundStyle(Color.tfSub)
@@ -663,6 +678,8 @@ enum SessionLiveDetail: Identifiable {
 
 struct SessionLiveDetailSheet: View {
     let detail: SessionLiveDetail
+    /// Область живого хода: шторка берёт разметку своего хода, а не соседнего.
+    var scope: String? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -732,7 +749,7 @@ struct SessionLiveDetailSheet: View {
             let shown = RoleTranslator.shared.display(thinking.text)
             RoleReplyMarkdown(text: shown, color: .tfText,
                               serverBlocks: shown == thinking.text
-                                  ? ChatLiveBlockRegistry.shared.blocks(for: thinking.text)?.map(\.block)
+                                  ? ChatLiveBlockRegistry.shared.blocks(for: thinking.text, scope: scope)?.map(\.block)
                                   : nil,
                               textGroup: .thinking)
                 .italic()
@@ -883,8 +900,8 @@ private struct SessionRoleCallRow: View {
 /// одного блока, а ответ из нескольких блоков вставал заглушкой «Не удалось
 /// получить подготовленное содержимое» (владелец 14.11.2026).
 enum SessionLiveReplyContent {
-    static func prepared(shown: String) -> [ChatRichSegment]? {
-        ChatRichContent.liveSegments(shown: shown)
+    static func prepared(shown: String, scope: String? = nil) -> [ChatRichSegment]? {
+        ChatRichContent.liveSegments(shown: shown, scope: scope)
     }
 }
 

@@ -81,37 +81,48 @@ public struct ChatLiveBlock: Decodable, Sendable, Equatable {
 /// читаются на каждом кадре и поэтому не уходят, даже когда длинный ход
 /// набрал много реплик (раньше 16 записей по порядку вставки — ранние реплики
 /// показывали «Не удалось получить подготовленное содержимое»).
+///
+/// Запись можно привязать к области — идентичности живого хода
+/// (`ChatLiveBlockScope.session(_:turnStartedAt:)`). Два хода с одинаковым или
+/// пересекающимся текстом регистрируют разные блоки, и без области каждый из
+/// них доставал чужую разметку: ответ одной сессии рисовался блоками другой
+/// (владелец 14.11.2026). Теперь совпадение текста засчитывается только внутри
+/// своей области, а запись без области видна только запросам без области —
+/// чаты ролей работают как раньше.
 public final class ChatLiveBlockRegistry: @unchecked Sendable {
     public static let shared = ChatLiveBlockRegistry()
     private let lock = NSLock()
     /// От давних к свежим: последний — самый недавно использованный.
-    private var entries: [(text: String, blocks: [ChatLiveBlock])] = []
+    private var entries: [(text: String, scope: String?, blocks: [ChatLiveBlock])] = []
     private let limit: Int
 
     init(limit: Int = 64) {
         self.limit = max(1, limit)
     }
 
-    public func register(_ blocks: [ChatLiveBlock], for text: String) {
+    public func register(_ blocks: [ChatLiveBlock], for text: String, scope: String? = nil) {
         lock.lock(); defer { lock.unlock() }
-        entries.removeAll { $0.text == text }
-        entries.append((text, blocks))
+        entries.removeAll { $0.text == text && $0.scope == scope }
+        entries.append((text, scope, blocks))
         if entries.count > limit { entries.removeFirst(entries.count - limit) }
     }
 
-    public func blocks(for text: String) -> [ChatLiveBlock]? {
+    public func blocks(for text: String, scope: String? = nil) -> [ChatLiveBlock]? {
         lock.lock(); defer { lock.unlock() }
-        guard let index = entries.lastIndex(where: { $0.text == text }) else { return nil }
+        guard let index = entries.lastIndex(where: { $0.text == text && $0.scope == scope }) else {
+            return nil
+        }
         touch(index)
         return entries[entries.count - 1].blocks
     }
 
     /// Блок, чей исходный кусок начинается с показанного текста (пейсер
     /// показывает начало куска). Свежие реплики проверяются первыми.
-    public func block(startingWith shown: String) -> ChatLiveBlock? {
+    public func block(startingWith shown: String, scope: String? = nil) -> ChatLiveBlock? {
         guard !shown.isEmpty else { return nil }
         lock.lock(); defer { lock.unlock() }
         for index in entries.indices.reversed() {
+            guard entries[index].scope == scope else { continue }
             if let match = entries[index].blocks.last(where: { $0.source.hasPrefix(shown) && !$0.source.isEmpty }) {
                 touch(index)
                 return match
@@ -124,6 +135,17 @@ public final class ChatLiveBlockRegistry: @unchecked Sendable {
     private func touch(_ index: Int) {
         guard index != entries.count - 1 else { return }
         entries.append(entries.remove(at: index))
+    }
+}
+
+/// Идентичность живого хода: сессия и начало её хода. Сессия живёт долго, а
+/// ходов в ней много, поэтому одной сессии мало: соседние ходы одного чата
+/// тоже не должны смешиваться. Строка области строится одинаково на записи
+/// (`SessionLiveTurn.apply`) и на чтении (`SessionLiveTurn.scope`) — обе берут
+/// `Date.ISO8601Format()`, как и `RoleChatLiveTurn.startedAt`.
+enum ChatLiveBlockScope {
+    static func session(_ sessionID: String, turnStartedAt: Date?) -> String {
+        sessionID + ":" + (turnStartedAt?.ISO8601Format() ?? "live")
     }
 }
 

@@ -15,6 +15,15 @@ typealias SessionJSON = JSONValue
 struct SessionLiveTurn: Equatable {
     private(set) var items: [RoleChatLiveItem] = []
     private(set) var startedAt: Date?
+    /// Сессия, которой принадлежит ход. Вместе с `startedAt` даёт область
+    /// разметки: два хода с одинаковым текстом больше не достают чужие блоки.
+    private(set) var sessionID: String?
+
+    /// Область живой разметки этого хода — та же строка, с которой
+    /// регистрируются блоки, поэтому чтение не может промахнуться.
+    var scope: String? {
+        sessionID.map { ChatLiveBlockScope.session($0, turnStartedAt: startedAt) }
+    }
 
     var isEmpty: Bool { items.isEmpty }
 
@@ -26,21 +35,28 @@ struct SessionLiveTurn: Equatable {
 
     /// Блоки сервера — в тот же реестр, что у живого хода ролей
     /// (`registerCurrentBlocks`): экран берёт их оттуда, текст не разбирает.
-    static func register(_ value: SessionJSON?, for text: String) {
+    /// `scope` — идентичность хода: без области запись остаётся видимой
+    /// только запросам без области (история, чаты ролей).
+    static func register(_ value: SessionJSON?, for text: String, scope: String? = nil) {
         guard let list = value?.foundationValue as? [Any], !list.isEmpty,
               let data = try? JSONSerialization.data(withJSONObject: list),
               let blocks = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !blocks.isEmpty else { return }
-        ChatLiveBlockRegistry.shared.register(blocks, for: text)
+        if let scope {
+            ChatLiveBlockRegistry.shared.register(blocks, for: text, scope: scope)
+        } else {
+            // Без области — как в комнате роли: история и чаты ролей.
+            ChatLiveBlockRegistry.shared.register(blocks, for: text)
+        }
     }
 
     /// Разметка размышлений из снимка: `thinking_blocks` — список {text, blocks}.
-    static func registerThinking(_ value: SessionJSON?, for text: String) {
+    static func registerThinking(_ value: SessionJSON?, for text: String, scope: String? = nil) {
         guard let list = value?.foundationValue as? [[String: Any]],
               let match = list.first(where: { ($0["text"] as? String) == text }),
               let blocks = match["blocks"] as? [Any],
               let data = try? JSONSerialization.data(withJSONObject: blocks),
               let decoded = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !decoded.isEmpty else { return }
-        ChatLiveBlockRegistry.shared.register(decoded, for: text)
+        ChatLiveBlockRegistry.shared.register(decoded, for: text, scope: scope)
     }
 
     mutating func reset() {
@@ -48,12 +64,16 @@ struct SessionLiveTurn: Equatable {
         startedAt = nil
     }
 
-    mutating func apply(type: String, payload: [String: SessionJSON], now: Date = Date()) {
+    mutating func apply(type: String, payload: [String: SessionJSON], now: Date = Date(),
+                        sessionID: String? = nil) {
+        if let sessionID { self.sessionID = sessionID }
         let stamp = SessionFeed.stamp(now)
+        var scope = self.scope
         switch type {
         case "agent_start":
             reset()
             startedAt = now
+            scope = self.scope
         case "assistant_thinking_delta":
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
             // Тонкий клиент (владелец 13.11.2026): весь текст части и блоки
@@ -68,12 +88,12 @@ struct SessionLiveTurn: Equatable {
                 let text = server
                 items[items.count - 1] = .thinking(RoleChatThinking(
                     id: thought.id, text: text, isRunning: true, startedAt: thought.startedAt))
-                Self.register(payload["blocks"], for: text)
+                Self.register(payload["blocks"], for: text, scope: scope)
             } else {
                 let text = server ?? delta
                 items.append(.thinking(RoleChatThinking(
                     id: "thinking-\(items.count)", text: text, isRunning: true, startedAt: stamp)))
-                Self.register(payload["blocks"], for: text)
+                Self.register(payload["blocks"], for: text, scope: scope)
             }
         case "assistant_text_delta":
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
@@ -85,12 +105,12 @@ struct SessionLiveTurn: Equatable {
                 guard let server else { return }
                 let full = server
                 items[items.count - 1] = .text(full)
-                Self.register(payload["blocks"], for: full)
+                Self.register(payload["blocks"], for: full, scope: scope)
             } else {
                 guard let server else { return }
                 let full = server
                 items.append(.text(full))
-                Self.register(payload["blocks"], for: full)
+                Self.register(payload["blocks"], for: full, scope: scope)
             }
         case "message_end":
             // Хвост ответа и размышления: сервер шлёт разметку не каждый раз,
@@ -100,11 +120,11 @@ struct SessionLiveTurn: Equatable {
                case .thinking(let thought) = items[index] {
                 items[index] = .thinking(RoleChatThinking(id: thought.id, text: full, isRunning: thought.isRunning,
                                                           startedAt: thought.startedAt))
-                Self.register(thinking["blocks"], for: full)
+                Self.register(thinking["blocks"], for: full, scope: scope)
             }
             guard let full = payload["text"]?.sessionString, case .text? = items.last else { return }
             items[items.count - 1] = .text(full)
-            Self.register(payload["blocks"], for: full)
+            Self.register(payload["blocks"], for: full, scope: scope)
         case "tool_start":
             closeThinking(at: stamp)
             let id = payload["toolCallId"]?.sessionString ?? "tool-\(items.count)"

@@ -161,12 +161,32 @@ extension ChatRichContent {
 
     /// Живой ход: показанное начало реплики → блок сервера, обрезанный по
     /// открытой доле исходного текста. nil — блоков нет (старый сервер).
-    static func liveSegments(shown: String) -> [ChatRichSegment]? {
-        guard let live = ChatLiveBlockRegistry.shared.block(startingWith: shown) else { return nil }
-        let full = segments(fromServer: [live.block], key: "live:" + live.source)
+    /// `scope` — идентичность хода: чужой блок с таким же текстом не берётся.
+    static func liveSegments(shown: String, scope: String? = nil) -> [ChatRichSegment]? {
+        guard let live = ChatLiveBlockRegistry.shared.block(startingWith: shown, scope: scope) else { return nil }
+        let full = segments(fromServer: [live.block], key: liveCacheKey(live))
         guard live.isProse, case .document(let blocks, _)? = full.first else { return full }
         let fraction = live.source.isEmpty ? 1 : Double(shown.count) / Double(live.source.count)
         return [.document(truncated(blocks, fraction: fraction), chars: shown.count + 1)]
+    }
+
+    /// Ключ кэша живого куска: тип блока входит в ключ. По одному тексту два
+    /// хода с одинаковым текстом, но разной разметкой (документ и виджет)
+    /// делили одну запись кэша — и один ответ рисовался блоками другого
+    /// (владелец 14.11.2026, вместе с областью реестра).
+    static func liveCacheKey(_ live: ChatLiveBlock) -> String {
+        let kind: String
+        switch live.block {
+        case .doc(_, let chars): kind = "doc/\(chars)"
+        case .table(let header, _, let rows, let chars): kind = "table/\(header.count)x\(rows.count)/\(chars)"
+        case .widget(let json): kind = "widget/\(json.hashValue)"
+        case .structuredJSON(let json): kind = "json/\(json.hashValue)"
+        case .structuredJSONStreaming(let json): kind = "json-stream/\(json.hashValue)"
+        case .html(let html): kind = "html/\(html.hashValue)"
+        case .pending(let pending): kind = "pending/\(pending)"
+        case .unknown: kind = "unknown"
+        }
+        return "live:" + kind + ":" + live.source
     }
 
     /// Начало документа длиной в долю `fraction` его видимого текста: целые

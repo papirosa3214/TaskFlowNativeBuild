@@ -112,8 +112,18 @@ public struct ChatLiveBlock: Decodable, Equatable {
 public final class ChatLiveBlockRegistry: @unchecked Sendable {
     public static let shared = ChatLiveBlockRegistry()
     private var stored: [String: [ChatLiveBlock]] = [:]
-    public func register(_ blocks: [ChatLiveBlock], for text: String) { stored[text] = blocks }
-    public func blocks(for text: String) -> [ChatLiveBlock]? { stored[text] }
+    // Копия живого API: область (сессия + ход) есть, поведение — по тексту.
+    public func register(_ blocks: [ChatLiveBlock], for text: String, scope: String? = nil) {
+        stored[text] = blocks
+    }
+    public func blocks(for text: String, scope: String? = nil) -> [ChatLiveBlock]? { stored[text] }
+}
+
+// Копия настоящей области из ChatServerBlock.swift.
+enum ChatLiveBlockScope {
+    static func session(_ sessionID: String, turnStartedAt: Date?) -> String {
+        sessionID + ":" + (turnStartedAt?.ISO8601Format() ?? "live")
+    }
 }
 
 extension JSONValue {

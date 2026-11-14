@@ -681,14 +681,14 @@ struct RoleLiveTextPacer {
     /// влезать и прыгало на следующую строку. Слова снова идут целиком.
     static let partialWordBacklog: Int = .max
 
-    mutating func ingest(_ incoming: [RoleChatLiveItem], isFinal: Bool = false) {
+    mutating func ingest(_ incoming: [RoleChatLiveItem], isFinal: Bool = false, scope: String? = nil) {
         // Rich blocks bypass the prose clock, including unfinished blocks whose
         // renderer shows a placeholder. Keep raw fences for the existing parser.
         var items: [RoleChatLiveItem] = []
         var immediate: Set<Int> = []
         for item in incoming {
             if case .text(let text) = item {
-                for (part, isImmediate) in Self.pacingParts(text) {
+                for (part, isImmediate) in Self.pacingParts(text, scope: scope) {
                     if isImmediate { immediate.insert(items.count) }
                     items.append(.text(part))
                 }
@@ -913,9 +913,10 @@ struct RoleLiveTextPacer {
     /// каждый раз — это отдельная работа на каждый вызов.
     private static let fenceRegex = try? NSRegularExpression(pattern: #"(?m)^[ \t]*```([^\r\n]*)(?:\r?\n|$)"#)
 
-    private static func pacingParts(_ text: String) -> [(String, Bool)] {
+    private static func pacingParts(_ text: String, scope: String? = nil) -> [(String, Bool)] {
         // Куски по блокам сервера: обычный текст — по словам, остальное — сразу.
-        if let blocks = ChatLiveBlockRegistry.shared.blocks(for: text) {
+        // Область — своя у каждого хода: пейсер не должен резать текст по чужим блокам.
+        if let blocks = ChatLiveBlockRegistry.shared.blocks(for: text, scope: scope) {
             let parts = blocks.filter { !$0.source.isEmpty }.map { ($0.source, !$0.isProse) }
             if !parts.isEmpty { return parts }
         }

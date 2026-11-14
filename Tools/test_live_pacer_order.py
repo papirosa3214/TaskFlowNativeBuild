@@ -41,7 +41,8 @@ struct ChatLiveBlock { let source: String; let isProse: Bool }
 final class ChatLiveBlockRegistry {
     static let shared = ChatLiveBlockRegistry()
     var map: [String: [ChatLiveBlock]] = [:]
-    func blocks(for text: String) -> [ChatLiveBlock]? { map[text] }
+    // Копия живого API: область (сессия + ход) есть, поведение — по тексту.
+    func blocks(for text: String, scope: String? = nil) -> [ChatLiveBlock]? { map[text] }
 }
 enum ChatRichContent {
     static let htmlLanguages: Set<String> = ["html"]

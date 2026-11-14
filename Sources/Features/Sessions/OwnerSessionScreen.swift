@@ -103,6 +103,7 @@ struct OwnerSessionScreen: View {
                         // Идущий ход — тем же пузырём, что ход роли в комнате:
                         // текст проявляется по словам, шаги встают по мере вызова.
                         SessionLiveTurnBubble(turn: liveRoleTurn, showsName: false,
+                                           scope: model.liveTurn.scope,
                                            isComplete: !model.isStreaming, pacesText: true,
                                            expansionRow: Self.liveTurnID, expansion: feedExpansion)
                             .id(Self.liveTurnID)

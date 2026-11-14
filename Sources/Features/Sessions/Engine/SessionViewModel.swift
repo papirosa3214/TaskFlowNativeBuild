@@ -490,7 +490,7 @@ final class SessionViewModel {
         let isNew = !state.seenCursors.contains(event.cursor)
         if isNew, event.sessionId == activeSessionID {
             if event.type == "agent_start" { liveTurnHasGaps = false }
-            liveTurn.apply(type: event.type, payload: event.payload)
+            liveTurn.apply(type: event.type, payload: event.payload, sessionID: event.sessionId)
         }
         SessionReducer.apply(event, to: &state)
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
@@ -512,7 +512,7 @@ final class SessionViewModel {
                 if payload.resetRequired, !liveTurn.isEmpty { liveTurnHasGaps = true }
                 if !payload.resetRequired {
                     for event in payload.events where !state.seenCursors.contains(event.cursor) && event.sessionId == sessionID {
-                        liveTurn.apply(type: event.type, payload: event.payload)
+                        liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
                     }
                 }
                 SessionReducer.apply(payload, to: &state)
@@ -556,6 +556,9 @@ final class SessionViewModel {
         state.childActivity = childActivity
         state.commandDelivery = delivery
         liveActivities = []
+        // Ход принадлежит открытой сессии: живая разметка читается только
+        // своим ходом, даже если два ответа совпали текстом (владелец 14.11.2026).
+        liveTurn.sessionID = snapshot.id
         // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
         // остаётся на экране как есть, без подмены записями снимка (владелец
         // 13.11.2026: «если он уже напечатался — итоговый ответ не нужен»);
