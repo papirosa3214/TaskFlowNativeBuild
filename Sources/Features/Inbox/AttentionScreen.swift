@@ -68,9 +68,7 @@ struct AttentionScreen: View {
                                 .tfText(.taskTitle)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, TFSpacing.md)
-                                // Заголовок раздела лежит на картинке-фоне без
-                                // своей полосы (владелец 15.11.2026: «нужны
-                                // заголовки, чтобы они были прозрачными»).
+                                .tfScreenBackground()
                                 .accessibilityAddTraits(.isHeader)
                             }
                         }
@@ -89,7 +87,7 @@ struct AttentionScreen: View {
             .padding(.vertical, TFSpacing.md)
         }
         .tfNativeHeader("Входящие", displayMode: .large)
-        .tfScreenBackground(art: .inbox)
+        .tfScreenBackground()
         .tint(Color.tfText)
         .hintAnchor(HintAnchorID.inboxTickets)
         .refreshable { await model.load() }

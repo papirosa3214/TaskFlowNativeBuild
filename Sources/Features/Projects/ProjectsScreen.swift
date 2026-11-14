@@ -115,7 +115,7 @@ struct ProjectsScreen: View {
                 }
             }
             .listStyle(.plain)
-            .tfScreenBackground(art: .projects)
+            .scrollContentBackground(.hidden)
         // Штатный pull-to-refresh (iOS 15+). Прокрути вниз и потяни — вызовет
         // projectStore.load(). Сегодня не трогаю по требованию владельца.
         // Задачи тоже: фильтры по состоянию считаются по списку задач, и без
