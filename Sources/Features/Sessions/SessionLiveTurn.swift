@@ -14,6 +14,12 @@ typealias SessionJSON = JSONValue
 /// DIF… полностью перенести всю логику чата в новую версию»).
 struct SessionLiveTurn: Equatable {
     private(set) var items: [RoleChatLiveItem] = []
+    /// Пункт текста текущего сообщения. Хвост из `message_end` кладётся в него,
+    /// даже если после текста пришло размышление или шаг инструмента: раньше
+    /// хвост применялся только к последнему пункту и терялся (владелец
+    /// 14.11.2026). На конце сообщения сбрасывается, поэтому текст следующего
+    /// сообщения встаёт новым пунктом и не подменяет предыдущий.
+    private var textItemIndex: Int?
     private(set) var startedAt: Date?
     /// Идентичность хода: выдаётся один раз при его начале и хранится здесь.
     /// Раньше область пересчитывалась из `sessionID` и `startedAt` при каждом
@@ -41,17 +47,21 @@ struct SessionLiveTurn: Equatable {
     /// Блоки сервера — в тот же реестр, что у живого хода ролей
     /// (`registerCurrentBlocks`): экран берёт их оттуда, текст не разбирает.
     /// `scope` — идентичность хода: без области запись остаётся видимой
-    /// только запросам без области (история, чаты ролей).
-    static func register(_ value: SessionJSON?, for text: String, scope: String? = nil) {
+    /// только запросам без области (история, чаты ролей). Возвращает `true`,
+    /// если разметка легла в реестр: тогда текст пункта совпадёт с блоками и
+    /// экран не покажет заглушку.
+    @discardableResult
+    static func register(_ value: SessionJSON?, for text: String, scope: String? = nil) -> Bool {
         guard let list = value?.foundationValue as? [Any], !list.isEmpty,
               let data = try? JSONSerialization.data(withJSONObject: list),
-              let blocks = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !blocks.isEmpty else { return }
+              let blocks = try? JSONDecoder().decode([ChatLiveBlock].self, from: data), !blocks.isEmpty else { return false }
         if let scope {
             ChatLiveBlockRegistry.shared.register(blocks, for: text, scope: scope)
         } else {
             // Без области — как в комнате роли: история и чаты ролей.
             ChatLiveBlockRegistry.shared.register(blocks, for: text)
         }
+        return true
     }
 
     /// Разметка размышлений из снимка: `thinking_blocks` — список {text, blocks}.
@@ -66,6 +76,7 @@ struct SessionLiveTurn: Equatable {
 
     mutating func reset() {
         items = []
+        textItemIndex = nil
         startedAt = nil
         identity = nil
     }
@@ -130,19 +141,18 @@ struct SessionLiveTurn: Equatable {
             guard let delta = payload["delta"]?.sessionString, !delta.isEmpty else { return }
             closeThinking(at: stamp)
             let server = payload["text"]?.sessionString
-            if case .text? = items.last {
-                // Кусок без разметки сервера не дописываем — текст должен
-                // совпадать с размеченным (хвост придёт в message_end).
-                guard let server else { return }
-                let full = server
-                items[items.count - 1] = .text(full)
-                Self.register(payload["blocks"], for: full, scope: scope)
+            // Кусок без разметки сервера не дописываем — текст должен
+            // совпадать с размеченным (хвост придёт в message_end).
+            guard let server else { return }
+            if let index = textItemIndex, items.indices.contains(index), case .text = items[index] {
+                items[index] = .text(server)
             } else {
-                guard let server else { return }
-                let full = server
-                items.append(.text(full))
-                Self.register(payload["blocks"], for: full, scope: scope)
+                // Новое сообщение в том же ходе: свой пункт, а не подмена
+                // текста предыдущего.
+                items.append(.text(server))
+                textItemIndex = items.count - 1
             }
+            Self.register(payload["blocks"], for: server, scope: scope)
         case "message_end":
             // Хвост ответа и размышления: сервер шлёт разметку не каждый раз,
             // а по абзацам; последняя — здесь (тонкий клиент без нагрева, 13.11.2026).
@@ -153,9 +163,21 @@ struct SessionLiveTurn: Equatable {
                                                           startedAt: thought.startedAt))
                 Self.register(thinking["blocks"], for: full, scope: scope)
             }
-            guard let full = payload["text"]?.sessionString, case .text? = items.last else { return }
-            items[items.count - 1] = .text(full)
-            Self.register(payload["blocks"], for: full, scope: scope)
+            // Сообщение кончилось: следующий текст — уже другое сообщение.
+            let textIndex = textItemIndex
+            textItemIndex = nil
+            guard let full = payload["text"]?.sessionString, !full.isEmpty else { return }
+            // Без подготовленной разметки хвост класть некуда: экран ищет
+            // блоки по тексту пункта, и голая строка встала бы заглушкой.
+            // Показанное размеченное начало не подменяем.
+            guard Self.register(payload["blocks"], for: full, scope: scope) else { return }
+            if let textIndex, items.indices.contains(textIndex), case .text = items[textIndex] {
+                items[textIndex] = .text(full)
+            } else {
+                // Ни один кусок не принёс серверного текста — ответ целиком
+                // есть только в `message_end`.
+                items.append(.text(full))
+            }
         case "tool_start":
             closeThinking(at: stamp)
             let id = payload["toolCallId"]?.sessionString ?? "tool-\(items.count)"

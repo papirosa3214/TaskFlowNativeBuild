@@ -261,4 +261,144 @@ final class SessionLiveTurnTests: XCTestCase {
         XCTAssertEqual(id, "v1")
         XCTAssertEqual(text, "Сказал")
     }
+
+    // MARK: - Хвост ответа в `message_end` (14.11.2026)
+    //
+    // Сервер шлёт разметку не на каждый кусок (не чаще, чем раз в 300 мс) и
+    // приносит точный последний текст части только в `message_end`. Хвост
+    // обязан встать в пункт текста своего сообщения, даже если последним стал
+    // размышление или шаг, и не должен терять текст, когда ни один кусок не
+    // принёс серверного текста. Текст следующего сообщения не подменяет
+    // предыдущий.
+
+    private func textItems(_ turn: SessionLiveTurn) -> [String] {
+        turn.items.compactMap { if case .text(let text) = $0 { return text } else { return nil } }
+    }
+
+    /// Разметка ответа тем же форматом, что готовит сервер: документ и его
+    /// исходный кусок `source` (по нему живёт реестр блоков).
+    private func replyBlocks(_ text: String) -> JSONValue {
+        .array([obj([
+            "type": .string("doc"),
+            "doc": obj([
+                "type": .string("doc"),
+                "content": .array([obj([
+                    "type": .string("paragraph"),
+                    "content": .array([obj(["type": .string("text"), "text": .string(text)])]),
+                ])]),
+            ]),
+            "chars": .number(Double(text.count)),
+            "source": .string(text),
+        ])])
+    }
+
+    /// Хвост после размышления: последний пункт хода — мысль, текст предыдущий.
+    @objc func testMessageEndTailLandsWhenThinkingIsLast() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Думаю"), "text": .string("Думаю")], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Начало"), "text": .string("Начало")], sessionID: "s")
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Ещё мысль"), "text": .string("Ещё мысль")], sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Начало и хвост"), "text": .string("Начало и хвост")],
+                   sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Начало и хвост"], "хвост текста потерян")
+        guard let scope = turn.scope else { return XCTFail("нет области хода") }
+        XCTAssertNotNil(ChatLiveBlockRegistry.shared.blocks(for: "Начало и хвост", scope: scope),
+                        "финальная разметка не зарегистрирована")
+    }
+
+    /// Хвост перед шагом инструмента: текст был до вызова, `message_end`
+    /// приходит, когда последним пунктом уже стоит шаг.
+    @objc func testMessageEndTailLandsWhenStepIsLast() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Сейчас"), "text": .string("Сейчас")], sessionID: "s")
+        turn.apply(type: "tool_start",
+                   payload: ["toolCallId": .string("c1"), "toolName": .string("bash"),
+                             "args": obj(["command": .string("ls")])], sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Сейчас проверю хвост"),
+                             "text": .string("Сейчас проверю хвост")], sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Сейчас проверю хвост"], "хвост перед шагом потерян")
+        guard case .step = turn.items.last else { return XCTFail("шаг обязан остаться на месте") }
+    }
+
+    /// Ни один кусок не принёс серверного текста: ответ целиком есть только в
+    /// `message_end` и обязан появиться.
+    @objc func testMessageEndAddsReplyWhenDeltasCarriedNoServerText() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Ду"), "text": .string("Ду")], sessionID: "s")
+        turn.apply(type: "assistant_text_delta", payload: ["delta": .string("Нач")], sessionID: "s")
+        turn.apply(type: "assistant_text_delta", payload: ["delta": .string("ало")], sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Начало и хвост"), "text": .string("Начало и хвост")],
+                   sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Начало и хвост"], "ответ не попал в живой ход")
+        XCTAssertEqual(turn.items.count, 2, "размышление и ответ — без заглушек и дублей")
+    }
+
+    /// Переподключение к середине хода: пунктов ещё нет, `message_end` с
+    /// разметкой создаёт ответ, а не теряет его.
+    @objc func testMessageEndCreatesReplyWhenTurnHasNoItems() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Ответ"), "text": .string("Ответ")],
+                   sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Ответ"])
+    }
+
+    /// Два сообщения в одном ходе: текст второго не подменяет первый ни
+    /// куском, ни хвостом; порядок пунктов сохраняется.
+    @objc func testSecondMessageDoesNotOverwriteFirstAndKeepsOrder() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Первый"), "text": .string("Первый"),
+                             "blocks": replyBlocks("Первый")], sessionID: "s")
+        turn.apply(type: "tool_start",
+                   payload: ["toolCallId": .string("c9"), "toolName": .string("bash"),
+                             "args": obj(["command": .string("ls")])], sessionID: "s")
+        turn.apply(type: "tool_end",
+                   payload: ["toolCallId": .string("c9"), "result": .object([:])], sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Первый полностью"),
+                             "text": .string("Первый полностью")], sessionID: "s")
+        // Второе сообщение после шага: свой кусок и свой хвост.
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Второй"), "text": .string("Второй"),
+                             "blocks": replyBlocks("Второй")], sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["blocks": replyBlocks("Второй полностью"),
+                             "text": .string("Второй полностью")], sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Первый полностью", "Второй полностью"],
+                       "второй текст подменил или потерял первый")
+        XCTAssertEqual(turn.items.count, 3, "порядок: ответ, шаг, второй ответ")
+        guard case .text = turn.items[0], case .step = turn.items[1], case .text = turn.items[2] else {
+            return XCTFail("порядок пунктов сломан")
+        }
+        guard let scope = turn.scope else { return XCTFail("нет области хода") }
+        XCTAssertNotNil(ChatLiveBlockRegistry.shared.blocks(for: "Первый полностью", scope: scope),
+                        "разметка первого ответа потеряна")
+        XCTAssertNotNil(ChatLiveBlockRegistry.shared.blocks(for: "Второй полностью", scope: scope),
+                        "разметка второго ответа потеряна")
+    }
+
+    /// `message_end` без разметки: показанное размеченное начало не подменяем
+    /// голым текстом — иначе экран покажет «Не удалось получить содержимое».
+    @objc func testMessageEndWithoutBlocksKeepsShownText() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Начало"), "text": .string("Начало"),
+                             "blocks": replyBlocks("Начало")], sessionID: "s")
+        turn.apply(type: "message_end", payload: ["text": .string("Начало и хвост")], sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Начало"], "текст без разметки некуда положить")
+    }
 }
