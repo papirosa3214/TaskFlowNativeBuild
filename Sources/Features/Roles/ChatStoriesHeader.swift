@@ -33,7 +33,7 @@ struct ChatStory: Identifiable, Equatable {
     let member: RoleChatMember
     /// Роль прямо сейчас работает — вокруг кружка цветное кольцо.
     let working: Bool
-    /// Только режим ролей: иконка ведёт прямо в постоянный личный чат.
+    /// Только режим ролей: наличие личного родителя открывает страницу комнаты и её детей.
     var personalChatID: String? = nil
 
     static func == (lhs: ChatStory, rhs: ChatStory) -> Bool {
@@ -48,7 +48,7 @@ extension ChatStory {
     /// чаты; не работает — в её профиль («кто он, что он, навыки»).
     var destination: AppRoute {
         // Уточнение владельца 14.11.2026: профиль по иконке — только в режиме сессий.
-        if let personalChatID { return .roleChat(id: personalChatID) }
+        if personalChatID != nil { return .chatRole(id: id) }
         if !working, let roleKey, !roleKey.isEmpty { return .agentProfile(id: roleKey) }
         return .chatRole(id: id)
     }

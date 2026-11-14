@@ -129,6 +129,63 @@ struct RoleChatsScreen: View {
         }
     }
 
+    /// Разделение владельца 14.11: страница комнат существует только в режиме ролей.
+    private var rolePersonalChatID: String? {
+        guard !ownerSessionsBeta, !isHome, case .role(let id) = selectedScope else { return nil }
+        return rooms?.role(id)?.personalChatID
+    }
+
+    @ViewBuilder
+    private var rolePage: some View {
+        if let personalID = rolePersonalChatID {
+            homeHeader("Постоянный личный чат")
+            if let personal = chats.first(where: { $0.id == personalID }) {
+                sessionLink(personal, isBranch: false)
+            } else {
+                NavigationLink("Открыть личный чат", value: AppRoute.roleChat(id: personalID))
+                    .padding(TFSpacing.screenHorizontal)
+            }
+            // По уточнению владельца: задачи не являются каталогом чата.
+            // Работа в слоте и обсуждение результата остаются в карточке.
+            let otherRows = visibleRows.filter {
+                $0.chat.id != personalID && $0.chat.taskID == nil && $0.chat.roomKind != "task"
+            }
+            if !otherRows.isEmpty {
+                homeHeader("Другие разговоры")
+                sessionList(otherRows)
+            }
+            colleaguesSection
+        }
+    }
+
+    /// Переписка выбранной роли с коллегами. Показывается и на странице роли,
+    /// и в прежнем списке: это свободные разговоры, а не комнаты задач
+    /// (уточнение владельца 14.11.2026).
+    @ViewBuilder
+    private var colleaguesSection: some View {
+        if !selectedRoleDMs.isEmpty {
+            Text("Переписка с коллегами")
+                .tfText(.meta)
+                .foregroundStyle(Color.tfDim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, TFSpacing.screenHorizontal)
+                .padding(.top, TFSpacing.lg)
+                .padding(.bottom, TFSpacing.xs)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(selectedRoleDMs) { dm in
+                NavigationLink(value: AppRoute.roleChat(id: dm.chatID)) {
+                    ChatListRow(title: rooms?.role(dm.peerID)?.name ?? "Роль",
+                                preview: dmPreview(dm.lastMessage),
+                                time: ChatListTime.label(dm.lastMessage?.createdAt),
+                                unread: 0, turn: dm.turn,
+                                member: rooms?.role(dm.peerID)?.member)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chats.room.\(dm.chatID)")
+            }
+        }
+    }
+
     /// Помощник — это сам чат, а не одна из ролей: корень вкладки — его
     /// сессии (владелец 12.11.2026).
     private static let assistantID = "u-secretary"
@@ -144,11 +201,12 @@ struct RoleChatsScreen: View {
         }
     }
 
-    /// Каталог «Групповые чаты» папками проектов (спецификация 08.11.2026, §3):
-    /// проект — папка комнат его задач, а не чат; комнаты без проекта лежат вне
-    /// папок. Возвращён в дом режима ролей (владелец 14.11.2026).
+    /// Только свободные групповые разговоры. По уточнению владельца 14.11.2026
+    /// задачи обсуждаются в ленте карточки и не входят в каталог чатов.
     private var groupSections: [RoleSessionGroup] {
-        RoleSessionList.groups(candidates, scope: .groups)
+        RoleSessionList.groups(candidates.filter { candidate in
+            !chats.contains { $0.id == candidate.id && ($0.taskID != nil || $0.roomKind == "task") }
+        }, scope: .groups)
     }
     /// Переписка выбранной роли с коллегами: открывается только на чтение.
     private var selectedRoleDMs: [ChatRoomsSnapshot.DirectRoom] {
@@ -207,6 +265,13 @@ struct RoleChatsScreen: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        if rolePersonalChatID != nil, case .role(let id) = selectedScope,
+                           let key = rooms?.role(id)?.roleKey {
+                            Button { openRoute?(.agentProfile(id: key)) } label: {
+                                Label("Профиль", systemImage: "person.crop.circle")
+                            }
+                            .accessibilityIdentifier("chats.rolePage.profile")
+                        }
                         Button {
                             openRoute?(.chatArchive)
                         } label: {
@@ -393,6 +458,8 @@ struct RoleChatsScreen: View {
                     searchResults
                 } else if isHome {
                     chatsHome
+                } else if rolePersonalChatID != nil {
+                    rolePage
                 } else if selectedScope == .groups {
                     groupsCatalog
                 } else if isLoading && chats.isEmpty {
@@ -406,27 +473,7 @@ struct RoleChatsScreen: View {
                         .padding(.top, TFSpacing.xl)
                 } else {
                     sessionList(visibleRows)
-                    if !selectedRoleDMs.isEmpty {
-                        Text("Переписка с коллегами")
-                            .tfText(.meta)
-                            .foregroundStyle(Color.tfDim)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, TFSpacing.screenHorizontal)
-                            .padding(.top, TFSpacing.lg)
-                            .padding(.bottom, TFSpacing.xs)
-                            .accessibilityAddTraits(.isHeader)
-                        ForEach(selectedRoleDMs) { dm in
-                            NavigationLink(value: AppRoute.roleChat(id: dm.chatID)) {
-                                ChatListRow(title: rooms?.role(dm.peerID)?.name ?? "Роль",
-                                            preview: dmPreview(dm.lastMessage),
-                                            time: ChatListTime.label(dm.lastMessage?.createdAt),
-                                            unread: 0, turn: dm.turn,
-                                            member: rooms?.role(dm.peerID)?.member)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("chats.room.\(dm.chatID)")
-                        }
-                    }
+                    colleaguesSection
                 }
                 // Добор высоты короткого списка — последней строкой самого
                 // списка: ни рамка, ни вставка снаружи, ни `contentMargins`
@@ -752,7 +799,7 @@ struct RoleChatsScreen: View {
     /// экран, ничего не удаляя. Режим новых сессий идёт мимо (`chatsHome`).
     @ViewBuilder
     private var rolesHome: some View {
-        let pinned = chats.filter { pinnedIDs.contains($0.id) && !$0.isPermanentRoom }
+        let pinned = chats.filter { pinnedIDs.contains($0.id) && !$0.isPermanentRoom && $0.taskID == nil && $0.roomKind != "task" }
         if !pinned.isEmpty {
             homeHeader("Закреплённые")
             ForEach(Array(pinned.enumerated()), id: \.element.id) { index, chat in
@@ -762,7 +809,7 @@ struct RoleChatsScreen: View {
         }
         // Уточнение владельца 14.11.2026: личные комнаты — только по
         // иконкам. Здесь остаются остальные разговоры, без списка ролей.
-        let byID = Dictionary(chats.filter { !$0.isPermanentRoom && !pinnedIDs.contains($0.id) }
+        let byID = Dictionary(chats.filter { !$0.isPermanentRoom && $0.taskID == nil && $0.roomKind != "task" && !pinnedIDs.contains($0.id) }
             .map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let ordinary = RoleSessionList.rows(candidates.filter { byID[$0.id] != nil }, scope: nil)
             .compactMap { row in byID[row.id].map { (row: row, chat: $0) } }
