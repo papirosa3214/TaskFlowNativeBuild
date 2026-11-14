@@ -14,12 +14,23 @@ typealias SessionJSON = JSONValue
 /// DIF… полностью перенести всю логику чата в новую версию»).
 struct SessionLiveTurn: Equatable {
     private(set) var items: [RoleChatLiveItem] = []
-    /// Пункт текста текущего сообщения. Хвост из `message_end` кладётся в него,
-    /// даже если после текста пришло размышление или шаг инструмента: раньше
+    /// Часть текста ответа в ходе: пункт и номер части у сервера
+    /// (`contentIndex`). Одно сообщение может содержать несколько текстовых
+    /// частей, и номер части — единственный признак, по которому видно, что
+    /// началась новая часть, а не продолжение прежней.
+    private struct TextPart: Equatable {
+        var index: Int
+        var contentIndex: Int?
+    }
+    /// Пункт текста текущей части сообщения. Хвост из `message_end` кладётся в
+    /// последнюю текстовую часть, даже если после текста пришло размышление
+    /// или шаг инструмента: раньше
     /// хвост применялся только к последнему пункту и терялся (владелец
-    /// 14.11.2026). На конце сообщения сбрасывается, поэтому текст следующего
-    /// сообщения встаёт новым пунктом и не подменяет предыдущий.
-    private var textItemIndex: Int?
+    /// 14.11.2026). Пункт переиспользуется только для той же
+    /// части: когда между кусками встало размышление, сервер начинает новую
+    /// часть (`contentIndex`), и её текст подменял первый (регрессия
+    /// `f4f511a3`). На конце сообщения указатель сбрасывается.
+    private var textPart: TextPart?
     private(set) var startedAt: Date?
     /// Идентичность хода: выдаётся один раз при его начале и хранится здесь.
     /// Раньше область пересчитывалась из `sessionID` и `startedAt` при каждом
@@ -76,7 +87,7 @@ struct SessionLiveTurn: Equatable {
 
     mutating func reset() {
         items = []
-        textItemIndex = nil
+        textPart = nil
         startedAt = nil
         identity = nil
     }
@@ -144,13 +155,21 @@ struct SessionLiveTurn: Equatable {
             // Кусок без разметки сервера не дописываем — текст должен
             // совпадать с размеченным (хвост придёт в message_end).
             guard let server else { return }
-            if let index = textItemIndex, items.indices.contains(index), case .text = items[index] {
-                items[index] = .text(server)
+            // Сервер присылает номер части (`contentIndex`). Тот же номер и
+            // пункт сразу за ним — продолжение части; иначе (между кусками
+            // встало размышление или шаг) началась НОВАЯ часть, и её текст
+            // обязан встать своим пунктом (регрессия `f4f511a3`).
+            let part = payload["contentIndex"]?.sessionInt
+            if let current = textPart, items.indices.contains(current.index),
+               current.index == items.count - 1, case .text = items[current.index],
+               part == nil || current.contentIndex == nil || current.contentIndex == part {
+                items[current.index] = .text(server)
+                textPart = TextPart(index: current.index, contentIndex: current.contentIndex ?? part)
             } else {
-                // Новое сообщение в том же ходе: свой пункт, а не подмена
-                // текста предыдущего.
+                // Новое сообщение или новая часть того же сообщения: свой
+                // пункт, а не подмена текста предыдущего.
                 items.append(.text(server))
-                textItemIndex = items.count - 1
+                textPart = TextPart(index: items.count - 1, contentIndex: part)
             }
             Self.register(payload["blocks"], for: server, scope: scope)
         case "message_end":
@@ -164,15 +183,21 @@ struct SessionLiveTurn: Equatable {
                 Self.register(thinking["blocks"], for: full, scope: scope)
             }
             // Сообщение кончилось: следующий текст — уже другое сообщение.
-            let textIndex = textItemIndex
-            textItemIndex = nil
+            let current = textPart
+            textPart = nil
             guard let full = payload["text"]?.sessionString, !full.isEmpty else { return }
             // Без подготовленной разметки хвост класть некуда: экран ищет
             // блоки по тексту пункта, и голая строка встала бы заглушкой.
             // Показанное размеченное начало не подменяем.
             guard Self.register(payload["blocks"], for: full, scope: scope) else { return }
-            if let textIndex, items.indices.contains(textIndex), case .text = items[textIndex] {
-                items[textIndex] = .text(full)
+            // Контракт сервера: `text` здесь — весь текст ПОСЛЕДНЕЙ текстовой
+            // части сообщения. Если это другая часть, чем показанная сейчас
+            // (её держали конвертом, и куски не приходили), хвост встаёт своим
+            // пунктом и не подменяет предыдущую часть.
+            let tailPart = Self.lastTextPartIndex(payload["message"])
+            if let current, items.indices.contains(current.index), case .text = items[current.index],
+               tailPart == nil || current.contentIndex == nil || current.contentIndex == tailPart {
+                items[current.index] = .text(full)
             } else {
                 // Ни один кусок не принёс серверного текста — ответ целиком
                 // есть только в `message_end`.
@@ -208,6 +233,17 @@ struct SessionLiveTurn: Equatable {
 
     private func stepIndex(_ id: String) -> Int? {
         items.lastIndex { if case .step(let step) = $0 { return step.id == id } else { return false } }
+    }
+
+    /// Номер последней текстовой части сообщения `message_end`: сервер кладёт
+    /// в `text` именно её (сырой `message.content` есть в том же payload).
+    /// `nil` — сообщения нет, старый сервер или частей без типа `text`.
+    static func lastTextPartIndex(_ message: SessionJSON?) -> Int? {
+        guard case .object(let object)? = message, case .array(let parts)? = object["content"] else { return nil }
+        return parts.lastIndex {
+            guard case .object(let part) = $0 else { return false }
+            return part["type"]?.sessionString == "text"
+        }
     }
 
     private mutating func closeThinking(at stamp: String) {
@@ -547,6 +583,12 @@ extension SessionJSON {
 
     var sessionBool: Bool? {
         if case .bool(let value) = self { return value }
+        return nil
+    }
+
+    /// Число без дробной части: `contentIndex` сервер шлёт числом JSON.
+    var sessionInt: Int? {
+        if case .number(let value) = self { return Int(value) }
         return nil
     }
 

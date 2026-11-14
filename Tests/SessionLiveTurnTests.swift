@@ -390,6 +390,71 @@ final class SessionLiveTurnTests: XCTestCase {
                         "разметка второго ответа потеряна")
     }
 
+    /// Регрессия `f4f511a3`: текст, размышление и ещё текст в ОДНОМ сообщении.
+    /// Сервер различает части ответа полем `contentIndex`; указатель на пункт
+    /// текста нельзя переиспользовать, когда между кусками встало размышление,
+    /// иначе второй текст подменяет первый и обе части теряются. Хвост
+    /// `message_end` — текст ПОСЛЕДНЕЙ части, он дописывает вторую, а не первую.
+    @objc func testSecondTextPartAfterThinkingKeepsBothParts() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Первая"), "text": .string("Первая"),
+                             "contentIndex": .number(0), "blocks": replyBlocks("Первая")],
+                   sessionID: "s")
+        turn.apply(type: "assistant_thinking_delta",
+                   payload: ["delta": .string("Мысль"), "text": .string("Мысль"),
+                             "contentIndex": .number(1)], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Вторая"), "text": .string("Вторая"),
+                             "contentIndex": .number(2), "blocks": replyBlocks("Вторая")],
+                   sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Первая", "Вторая"], "второй текст подменил первый")
+        XCTAssertEqual(turn.items.count, 3, "порядок: текст, размышление, текст")
+        turn.apply(type: "message_end",
+                   payload: ["text": .string("Вторая и хвост"),
+                             "blocks": replyBlocks("Вторая и хвост"),
+                             "message": obj([
+                                "role": .string("assistant"),
+                                "content": .array([
+                                    obj(["type": .string("text"), "text": .string("Первая")]),
+                                    obj(["type": .string("thinking"), "thinking": .string("Мысль")]),
+                                    obj(["type": .string("text"), "text": .string("Вторая и хвост")]),
+                                ]),
+                             ])], sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Первая", "Вторая и хвост"], "хвост дописан не в свою часть")
+        guard turn.items.count == 3, case .text = turn.items[0], case .thinking = turn.items[1],
+              case .text = turn.items[2] else {
+            return XCTFail("порядок пунктов сломан: \(turn.items.count) пунктов")
+        }
+        guard let scope = turn.scope else { return XCTFail("нет области хода") }
+        XCTAssertNotNil(ChatLiveBlockRegistry.shared.blocks(for: "Вторая и хвост", scope: scope),
+                        "финальная разметка второй части не зарегистрирована")
+    }
+
+    /// Хвост ДРУГОЙ части сообщения не подменяет показанную: часть, которую
+    /// сервер держал конвертом, приходит целиком только в `message_end` и
+    /// встаёт своим пунктом.
+    @objc func testMessageEndTailOfAnotherPartDoesNotOverwriteShownText() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:], sessionID: "s")
+        turn.apply(type: "assistant_text_delta",
+                   payload: ["delta": .string("Начало"), "text": .string("Начало"),
+                             "contentIndex": .number(0), "blocks": replyBlocks("Начало")],
+                   sessionID: "s")
+        turn.apply(type: "message_end",
+                   payload: ["text": .string("Вторая часть"),
+                             "blocks": replyBlocks("Вторая часть"),
+                             "message": obj([
+                                "role": .string("assistant"),
+                                "content": .array([
+                                    obj(["type": .string("text"), "text": .string("Начало")]),
+                                    obj(["type": .string("text"), "text": .string("Вторая часть")]),
+                                ]),
+                             ])], sessionID: "s")
+        XCTAssertEqual(textItems(turn), ["Начало", "Вторая часть"], "хвост подменил показанную часть")
+    }
+
     /// `message_end` без разметки: показанное размеченное начало не подменяем
     /// голым текстом — иначе экран покажет «Не удалось получить содержимое».
     @objc func testMessageEndWithoutBlocksKeepsShownText() {
