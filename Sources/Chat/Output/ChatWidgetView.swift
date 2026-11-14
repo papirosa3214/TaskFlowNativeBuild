@@ -79,11 +79,18 @@ struct ChatWidgetView: View {
             // виджеты (владелец 11.11.2026: подложка как у пузыря сообщения).
             WidgetCard(title: table.title) {
                 VStack(alignment: .leading, spacing: TFSpacing.xs) {
-                    ChatTableView(table: ChatTable(
-                        header: table.columns,
-                        alignments: Array(repeating: .leading, count: table.columns.count),
-                        rows: table.rows
-                    ))
+                    // Цвет — как у markdown-таблицы в тексте ответа (владелец
+                    // 13.11.2026: «таблицы рисуются по-разному»): здесь брался
+                    // дефолт .tfText, а там .tfChatText — в тёмной теме две
+                    // одинаковые таблицы выглядели разными.
+                    ChatTableView(
+                        table: ChatTable(
+                            header: table.columns,
+                            alignments: Array(repeating: .leading, count: table.columns.count),
+                            rows: table.rows
+                        ),
+                        color: .tfChatText
+                    )
                     if let note = table.truncatedNote {
                         Text(note).tfText(.meta).foregroundStyle(Color.tfSub)
                     }
