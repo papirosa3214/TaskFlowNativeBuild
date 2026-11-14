@@ -10,7 +10,13 @@ AgentTrace требует сетевой `TaskLiveTurn`, SafePasteboard — UIKi
 исключены, модели хода их не используют.
 
 `--against=SHA` — те же тесты против исходников из явного коммита (нужно, чтобы
-отличить падение из-за правки от падения, которое было и до неё).
+отличить падение из-за правки от падения, которое было и до неё). Тесты в этом
+режиме берутся тоже из `SHA` — стенд отвечает на вопрос «падало ли и до правки»,
+а не «ловят ли ошибку тесты текущего дерева»; гейтом RED служит
+`Tools/test_chat_live_block_scope.py --against=SHA`.
+
+Коды возврата: 0 — тесты прошли; 1 — тесты упали; 2 — стенд не собрался
+(нет исходника в `SHA`, ошибка компиляции) — это не результат тестов.
 """
 from pathlib import Path
 import subprocess
@@ -32,14 +38,14 @@ def source_text(path: str) -> str:
                                capture_output=True, text=True)
         if shown.returncode == 0:
             return shown.stdout
-        print(f'RED: {path} нет в {against}')
-        sys.exit(1)
+        print(f'ОШИБКА: {path} нет в {against} — стенд не собрать (это не падение тестов)')
+        sys.exit(2)
     return (root / path).read_text()
 
 
-if not source.exists():
-    print('RED: SessionLiveTurn.swift отсутствует')
-    sys.exit(1)
+if not against and not source.exists():
+    print('ОШИБКА: SessionLiveTurn.swift отсутствует — стенд не собрать')
+    sys.exit(2)
 
 FILES = (
     sorted(f'Sources/Core/Models/{p.name}' for p in (root / 'Sources/Core/Models').glob('*.swift'))
@@ -72,5 +78,14 @@ with tempfile.TemporaryDirectory(prefix='session-live-turn-') as tmp:
     ], capture_output=True, text=True)
     if build.returncode != 0:
         print(build.stderr[-6000:])
-        sys.exit(build.returncode)
-    sys.exit(subprocess.run([str(binary)]).returncode)
+        print('ОШИБКА: тесты не собрались — это поломка стенда, а не результат тестов')
+        sys.exit(2)
+    code = subprocess.run([str(binary)]).returncode
+
+if against:
+    print(f'{against[:12]}: тесты '
+          + ('прошли — падение текущего дерева новое' if code == 0
+             else 'упали — падение было и до правки'))
+else:
+    print('GREEN: все тесты прошли' if code == 0 else f'GREEN не достигнут: тесты упали (код {code})')
+sys.exit(code)

@@ -5,9 +5,15 @@ public enum SessionReducer {
     /// `SessionReconnectReplay.events(_:sessionID:carried:)` с учётом событий,
     /// пришедших, пока ответ на сброс был в пути). Не передано — окно
     /// считается по самому ответу.
+    /// `replayComplete` — в окне нет дыры, которую закроет повтор (усечённая
+    /// очередь `carried`): только тогда курсор можно двигать за окно.
+    /// `eventsLost` полноту не отменяет: сервер эти данные вытеснил, повтор
+    /// их не вернёт, и держать курсор на вытесненной точке — значит просить
+    /// её на каждом обрыве и снова получать сброс (ревью владельца 14.11.2026).
     public static func apply(
         _ reconnect: SessionReconnectPayload,
         replay: [SessionEventEnvelope]? = nil,
+        replayComplete: Bool = true,
         to state: inout SessionState
     ) {
         if reconnect.resetRequired {
@@ -32,7 +38,10 @@ public enum SessionReducer {
                     apply(event, to: &state)
                 }
                 state.lastCursor = SessionReconnectReplay.cursor(
-                    point: point, applied: window, previous: previous
+                    point: point,
+                    applied: window,
+                    previous: previous,
+                    complete: replayComplete
                 )
             } else {
                 // Старый ответ без точки: покрытие снимка неизвестно. События

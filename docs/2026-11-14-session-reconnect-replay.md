@@ -128,6 +128,128 @@ cd Packages/NewChatCore && swift test --filter SessionReducerTests
   test-without-building` (UI-раннер на симуляторе), правило «одна сборка за
   раз»; симулятор, UI-тесты и установка не запускались.
 
+## Ревью владельца `51bc45a4`: очередь при `eventsLost`, курсор за дыру
+
+> Часть выводов первого круга отменена вторым кругом (ниже): «при
+> `eventsLost` курсор остаётся на точке снимка» и «`reconnectFetchSessionID`».
+
+Замечания владельца (14.11.2026):
+
+1. `SessionReconnectReplay.events` под `guard !payload.eventsLost` возвращал
+   `[]` и для `carried`, хотя очередь содержит сокетные события **после**
+   начала HTTP-запроса: сервер их в ответ уже не положил, а в `entries`
+   снимка их быть не может (они новее его точки).
+2. `SessionReducer` после сброса сдвигал `lastCursor` на прежний курсор вперёд,
+   не воспроизводя эти события: `agent_settled`/`message_end` из очереди
+   терялись окончательно, а догон их пропускал, потому что курсор уже ушёл за
+   них.
+3. `reconnectBuffer` ограничен 512 и молча делал `removeFirst`: считать, что
+   окно не длиннее серверного буфера, неверно при долгом запросе. Сдвигать
+   курсор за потерянные данные без восстановления нельзя.
+4. Плюс одновременные `recoverAfterReconnect` и смена сессии во время запроса.
+
+### Что исправлено (только новые сессии, роли не тронуты)
+
+- `SessionReconnectReplay.events`: запрет `eventsLost` снят — проигрываются
+  все события новее точки снимка той же эпохи из ответа **и** из `carried`
+  (дедуп по курсору, порядок по `seq`). `eventsLost` — факт о вытесненной
+  голове окна, а не о том, что событие уже в снимке.
+- `SessionReconnectReplay.cursor(..., complete:)`: при неполном окне
+  (`eventsLost` или вытесненная очередь) курсор остаётся на точке снимка —
+  за дыру он не идёт. При полном окне поведение прежнее (не откатывается).
+- `SessionReconnectReplay.resumeCursor(lastCursor:recovering:)`: пока известна
+  дыра, догон просит от неё, хотя живые события уже увели `lastCursor` вперёд;
+  курсор другой эпохи к дыре не относится.
+- `SessionReducer.apply(_:replay:replayComplete:to:)`: полнота окна передаётся
+  явно и складывается с `eventsLost`; от неё зависит курсор.
+- `SessionViewModel`:
+  - `reconnectFetchSessionID` вместо булева флага: очередь принадлежит сессии
+    своего догона, второй одновременный догон той же сессии пропускается
+    (`recover skipped in-flight`), а чужой вызов не забирает очередь и не снимает
+    флаг;
+  - `reconnectBufferTruncated` вместо молчаливого `removeFirst`: упёрлись в
+    512 — окно неполное, курсор не двигается, в журнал пишется `truncated=true`;
+  - `recoveryCursor` — известная дыра; на сбросе ставится точка снимка, при
+    успешном догоне снимается, при смене сессии очищается вместе с очередью;
+  - `keepsLiveTurn` считается от неполноты окна (`!replayComplete`), поэтому
+    вытеснение очереди не стирает уже показанный текст; полный текст по-прежнему
+    доезжает на `message_end`;
+  - при смене сессии (`installSnapshot`, другой `id`) очередь, флаг усечения,
+    владелец очереди и дыра сбрасываются.
+
+Гарантия та же и ограничена контрактом сервера: середину вытесненного окна
+клиент не восстанавливает, он её честно помнит (`recoveryCursor`, журнал) и
+просит заново на следующем догоне, а не перешагивает.
+
+### Проверено
+
+```
+cd Packages/NewChatCore && swift test --filter SessionReducerTests
+```
+
+- RED на коде до правки: 3 теста, 8 проверок упали
+  (`testReconnectResetEventsLostStillReplaysEventsNewerThanPoint`,
+  `testReconnectResetEventsLostKeepsCarriedSocketEvents`,
+  `testReconnectResetEventsLostDoesNotAdvanceCursorPastGap`);
+- GREEN после правки: `Executed 15 tests, with 0 failures`; добавлен
+  `testResumeCursorKeepsKnownGap`;
+- `swiftc -parse Sources/Features/Sessions/Engine/SessionViewModel.swift` — чисто;
+  сторож дизайн-системы `--diff HEAD` — чисто;
+- сборка Xcode, симулятор, UI-тесты и установка не запускались (по поручению).
+
+## Второй круг ревью (14.11.2026): двойной проигрыш, владение очередью, вечная дыра
+
+Замечания владельца к разнице первого круга:
+
+1. `keepsLiveTurn` сохранял текущий `liveTurn`, но потом применял **всё**
+   окно, включая `carried`, которое `receive` уже применил: шаги и куски текста
+   задваивались. Состояние при этом пересоздаётся снимком — ему нужно окно
+   целиком.
+2. Владение очередью по одному `sessionID`: при A→B→A поздний ответ старого
+   запроса A считал очередь нового A своей и забирал её до проверки поколения
+   сессии; его `catch` так же снимал чужой флаг.
+3. `eventsLost` — сервер физически вытеснил данные. Постоянный
+   `recoveryCursor` на вытесненной точке давал сброс на каждом переподключении:
+   восстановление надо считать законченным (с финальным ответом), а не
+   выдавать дыру восстановленной.
+
+### Что исправлено (только новые сессии)
+
+- `SessionReconnectReplay.liveEvents(_:sessionID:carried:keepingCurrent:)`:
+  сохранённый ход получает только события ответа (`keepingCurrent: true` →
+  `carried` не повторяется), пересозданный — окно целиком. Состояние всегда
+  получает полное окно через `SessionReducer`.
+- `SessionViewModel`: владение очередью — `ReconnectFetch(sessionID, token)`,
+  `token` из монотонного `reconnectFetchSeq`; сравнение по `Equatable`
+  (`reconnectFetch == fetch`), поэтому поздний ответ и его `catch` чужой флаг
+  не снимают и чужую очередь не забирают.
+- `recoveryCursor` ставится только на дыру, закрываемую повтором
+  (`!carriedComplete && !payload.eventsLost`); `SessionReducer` больше не
+  учитывает `eventsLost` в полноте окна — курсор идёт по последнему
+  проигранному событию, к вытесненной точке не возвращается. В журнал пишется
+  `recover gap-evicted not-recovered` — потерянное не выдаётся за
+  восстановленное.
+- Живой ход при `eventsLost` по-прежнему не стирается (`keepsLiveTurn`):
+  показанный текст сервер прислал сам, полный текст доедет на `message_end`.
+
+### Проверено
+
+```
+cd Packages/NewChatCore && swift test --filter SessionReducerTests
+```
+
+- RED на прежнем поведении: 4 теста, 4 проверки упали
+  (`…EventsLostDoesNotReturnCursorToEvictedPoint`,
+  `…EventsLostStillReplaysEventsNewerThanPoint`,
+  `…EventsLostKeepsCarriedSocketEvents`,
+  `…LiveEventsKeptTurnExcludesCarriedAlreadyApplied`);
+- GREEN после правки: `Executed 17 tests, with 0 failures`; добавлены
+  `testReconnectResetRecoverableWindowKeepsPointCursor` и
+  `testLiveEventsKeptTurnExcludesCarriedAlreadyApplied`;
+- `swiftc -parse` по `Sources` (цель iOS 17, arm64) — чисто;
+  сторож дизайн-системы `--diff HEAD` — чисто;
+- сборка Xcode, симулятор, UI-тесты, установка не запускались (по поручению).
+
 ## Что осталось
 
 - Проверка на живом обрыве связи в приложении (симулятор/iPhone) — только по

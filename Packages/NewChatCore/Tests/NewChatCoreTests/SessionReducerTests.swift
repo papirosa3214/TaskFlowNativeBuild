@@ -155,31 +155,68 @@ final class SessionReducerTests: XCTestCase {
         XCTAssertFalse(state.needsSnapshotReset)
     }
 
-    /// `eventsLost`: точку снимка вытеснило, головы части хода в ленте нет.
-    /// Честный итог — только снимок и его точка; данные не выдумываются.
-    func testReconnectResetEventsLostKeepsSnapshotAndItsPointOnly() throws {
+    /// `eventsLost`: голову окна вытеснило, но события новее точки снимка
+    /// известны поимённо — их проигрывать можно и нужно: их в `entries`
+    /// снимка быть не может (контракт по точке). Курсор за вытесненную
+    /// середину не откатывается: остаётся на последнем проигранном событии
+    /// (ревью владельца 14.11.2026 — вечная дыра на точке снимка давала сброс
+    /// на каждом переподключении).
+    func testReconnectResetEventsLostStillReplaysEventsNewerThanPoint() throws {
         let snapshot = SessionSnapshot(
             id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
             parentSession: nil, name: nil, leafId: nil,
             isStreaming: true, isIdle: false, entries: [], tree: [],
             eventCursor: "e:500", eventCursorEpoch: "e", eventCursorSeq: 500
         )
-        // Сервер в этом случае шлёт пустые events; даже если что-то пришло,
-        // проигрывать его нельзя: неизвестно, что уже в снимке.
         let tail = try event(#"{"cursor":"e:512","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Tail"}]}}}"#)
         let payload = SessionReconnectPayload(
             resetRequired: true, events: [tail], snapshot: snapshot, eventsLost: true
         )
         var state = SessionState(snapshot: .fixture(id: "stale"))
 
-        XCTAssertEqual(SessionReconnectReplay.events(payload, sessionID: "root"), [],
-                       "при eventsLost окно не проигрывается")
+        XCTAssertEqual(SessionReconnectReplay.events(payload, sessionID: "root").map(\.cursor), ["e:512"],
+                       "событие новее точки в снимке не лежит — его проигрываем")
         SessionReducer.apply(payload, to: &state)
 
         XCTAssertEqual(state.snapshot?.id, "root")
-        XCTAssertTrue(state.messages.isEmpty)
-        XCTAssertEqual(state.lastCursor, "e:500")
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")])
+        XCTAssertEqual(state.lastCursor, "e:512",
+                       "за вытесненную дыру 501…511 курсор не откатывается")
         XCTAssertFalse(state.needsSnapshotReset)
+    }
+
+    /// `eventsLost` и событие, пришедшее по сокету, пока ответ был в пути:
+    /// оно новее точки снимка и в ответ не попало. Раньше общий запрет на
+    /// `eventsLost` выбрасывал и его, а курсор уходил вперёд — `agent_settled`
+    /// и `message_end` терялись навсегда (ревью владельца 14.11.2026).
+    func testReconnectResetEventsLostKeepsCarriedSocketEvents() throws {
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: nil,
+            isStreaming: true, isIdle: false, entries: [], tree: [],
+            eventCursor: "e:500", eventCursorEpoch: "e", eventCursorSeq: 500
+        )
+        let carriedEnd = try event(#"{"cursor":"e:512","sessionId":"root","type":"message_end","timestamp":"t","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Tail"}]}}}"#)
+        let carriedSettled = try event(#"{"cursor":"e:513","sessionId":"root","type":"agent_settled","timestamp":"t","payload":{}}"#)
+        let payload = SessionReconnectPayload(
+            resetRequired: true, events: [], snapshot: snapshot, eventsLost: true
+        )
+        var state = SessionState(snapshot: .fixture(id: "stale"))
+        state.lastCursor = "e:513"
+
+        let replay = SessionReconnectReplay.events(
+            payload, sessionID: "root", carried: [carriedSettled, carriedEnd]
+        )
+        XCTAssertEqual(replay.map(\.cursor), ["e:512", "e:513"])
+
+        SessionReducer.apply(payload, replay: replay, to: &state)
+
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")],
+                       "окончание хода из очереди не теряется")
+        XCTAssertEqual(state.snapshot?.isStreaming, false)
+        XCTAssertEqual(state.snapshot?.isIdle, true)
+        XCTAssertEqual(state.lastCursor, "e:513",
+                       "очередь знает окончание окна: курсор не остаётся на вытесненной точке")
     }
 
     /// Другая эпоха ленты — другая лента: её события снимку не принадлежат и
@@ -234,10 +271,13 @@ final class SessionReducerTests: XCTestCase {
         XCTAssertEqual(state.lastCursor, "e:12", "догон продолжается с последнего проигранного")
     }
 
-    /// `eventsLost`: точку снимка вытеснило, и она старше того, что клиент уже
-    /// принял до сброса. Курсор не откатывается — иначе следующий догон снова
-    /// упрётся в вытесненное и повторит сброс.
-    func testReconnectResetEventsLostKeepsCursorBeforeReset() throws {
+    /// `eventsLost`: точка снимка старше того, что клиент уже принял до
+    /// сброса, но эти данные сервер вытеснил физически — повтором их не
+    /// вернуть. Курсор поэтому не откатывается к вытесненной точке: иначе
+    /// каждый обрыв просил бы её и снова получал сброс. Дыру это не
+    /// «восстанавливает» — потерянное остаётся потерянным (ревью владельца
+    /// 14.11.2026).
+    func testReconnectResetEventsLostDoesNotReturnCursorToEvictedPoint() throws {
         let snapshot = SessionSnapshot(
             id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
             parentSession: nil, name: nil, leafId: nil,
@@ -254,12 +294,88 @@ final class SessionReducerTests: XCTestCase {
 
         XCTAssertEqual(state.snapshot?.id, "root")
         XCTAssertTrue(state.messages.isEmpty)
-        XCTAssertEqual(state.lastCursor, "e:520", "курсор не откатывается к вытесненной точке")
+        XCTAssertEqual(state.lastCursor, "e:520",
+                       "курсор остаётся на последнем известном событии, не на вытесненной точке")
 
-        // Превняя эпоха — другая лента: её курсор к снимку не относится.
+        // Прежняя эпоха — другая лента: её курсор к снимку не относится.
         state.lastCursor = "f:520"
         SessionReducer.apply(payload, to: &state)
         XCTAssertEqual(state.lastCursor, "e:500")
+    }
+
+    /// Дыра, которую закроет повтор (усечённая очередь), — курсор остаётся
+    /// на точке снимка: следующий догон спросит окно заново.
+    func testReconnectResetRecoverableWindowKeepsPointCursor() throws {
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: nil,
+            isStreaming: true, isIdle: false, entries: [], tree: [],
+            eventCursor: "e:500", eventCursorEpoch: "e", eventCursorSeq: 500
+        )
+        let tail = try event(#"{"cursor":"e:512","sessionId":"root","type":"agent_settled","timestamp":"t","payload":{}}"#)
+        let payload = SessionReconnectPayload(
+            resetRequired: true, events: [tail], snapshot: snapshot
+        )
+        var state = SessionState(snapshot: .fixture(id: "stale"))
+        state.lastCursor = "e:520"
+
+        SessionReducer.apply(
+            payload, replay: SessionReconnectReplay.events(payload, sessionID: "root"),
+            replayComplete: false, to: &state
+        )
+
+        XCTAssertEqual(state.lastCursor, "e:500",
+                       "неполное окно не перепрыгиваем: следующий догон спросит с точки")
+    }
+
+    /// Сохранённый живой ход уже получил `carried` в `receive`: в него идут
+    /// только события ответа, иначе шаги и куски текста задваиваются.
+    /// Пересозданное состояние получает окно целиком.
+    func testLiveEventsKeptTurnExcludesCarriedAlreadyApplied() throws {
+        let snapshot = SessionSnapshot(
+            id: "root", cwd: "/project", sessionFile: "/sessions/root.jsonl",
+            parentSession: nil, name: nil, leafId: nil,
+            isStreaming: true, isIdle: false, entries: [], tree: [],
+            eventCursor: "e:500", eventCursorEpoch: "e", eventCursorSeq: 500
+        )
+        let fromResponse = try event(#"{"cursor":"e:512","sessionId":"root","type":"tool_start","timestamp":"t","payload":{}}"#)
+        let carried = try event(#"{"cursor":"e:513","sessionId":"root","type":"tool_start","timestamp":"t","payload":{}}"#)
+        let payload = SessionReconnectPayload(
+            resetRequired: true, events: [fromResponse], snapshot: snapshot, eventsLost: true
+        )
+
+        XCTAssertEqual(
+            SessionReconnectReplay.liveEvents(
+                payload, sessionID: "root", carried: [carried], keepingCurrent: true
+            ).map(\.cursor),
+            ["e:512"],
+            "сохранённому ходу не повторяем то, что уже применил receive"
+        )
+        XCTAssertEqual(
+            SessionReconnectReplay.liveEvents(
+                payload, sessionID: "root", carried: [carried], keepingCurrent: false
+            ).map(\.cursor),
+            ["e:512", "e:513"],
+            "пересозданный ход получает окно целиком"
+        )
+    }
+
+    /// Пока известна дыра, догон просит от неё, хотя живые события уже увели
+    /// `lastCursor` вперёд. Курсор из другой эпохи к текущей ленте не относится.
+    func testResumeCursorKeepsKnownGap() {
+        XCTAssertEqual(
+            SessionReconnectReplay.resumeCursor(lastCursor: "e:530", recovering: "e:500"),
+            "e:500"
+        )
+        XCTAssertEqual(
+            SessionReconnectReplay.resumeCursor(lastCursor: "e:530", recovering: nil),
+            "e:530"
+        )
+        XCTAssertEqual(
+            SessionReconnectReplay.resumeCursor(lastCursor: "e:530", recovering: "f:500"),
+            "e:530"
+        )
+        XCTAssertEqual(SessionReconnectReplay.resumeCursor(lastCursor: nil, recovering: "e:500"), "e:500")
     }
 
     func testMissingReconnectSnapshotRequestsReset() {

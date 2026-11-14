@@ -11,12 +11,17 @@
   • тесты `Tests/ChatLiveBlockScopeTests.swift`.
 
 Режимы:
-  (по умолчанию)  GREEN на текущем дереве.
-  --against=SHA   RED на явном базовом коммите: те же тесты против исходников
-                  из `git show SHA:<файл>`, с `-DSESSION_TURN_BASE` (тесты
-                  смены снимка требуют `bind`, которого на базе нет).
+  (по умолчанию)  GREEN на текущем дереве — 0 зелёные, 1 тесты упали, 2 стенд не собрался.
+  --against=SHA   RED на явном базовом коммите: те же тесты (текущие) против
+                  исходников из `git show SHA:<файл>`, с `-DSESSION_TURN_BASE`
+                  (тесты смены снимка требуют `bind`, которого на базе нет).
+                  Коды: 0 — RED воспроизведён (на базе тесты падают), 1 — RED
+                  не воспроизведён (на базе тесты проходят, тест не ловит
+                  ошибку), 2 — базу не удалось собрать (нет файла, ошибка
+                  компиляции): это не RED, а поломка стенда, гейт не проходит.
   --defect=SHA    воспроизведение заявленного дефекта сборки: назначение
                   `private(set) sessionID` вне файла модели на базе.
+                  Код 0 — дефект есть, 1 — назначение прошло, 2 — стенд сломан.
   --typecheck     проверка типов затронутой логики на настоящих типах:
                   `SessionSnapshot` из пакета `NewChatCore` (как в приложении)
                   и точное выражение из `SessionViewModel`
@@ -66,16 +71,22 @@ def screen_block(text: str) -> str:
     """Настоящий `enum SessionLiveReplyContent` из экрана сессии."""
     match = re.search(r'enum SessionLiveReplyContent \{.*?\n\}', text, re.S)
     if not match:
-        print('RED: в SessionLiveTurnView нет SessionLiveReplyContent')
-        sys.exit(1)
+        print('ОШИБКА: в SessionLiveTurnView нет SessionLiveReplyContent — стенд не собрать')
+        sys.exit(2)
     return match.group(0)
 
 
 def show_arguments(at: str) -> dict[str, str]:
-    return {
-        path: subprocess.check_output(['git', '-C', str(root), 'show', f'{at}:{path}'], text=True)
-        for path in FILES + [screen]
-    }
+    """Исходники из коммита. Файла нет — поломка стенда, а не RED (код 2)."""
+    shown: dict[str, str] = {}
+    for path in FILES + [screen]:
+        result = subprocess.run(['git', '-C', str(root), 'show', f'{at}:{path}'],
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f'ОШИБКА: {path} нет в {at} — стенд не собрать (это не RED)')
+            sys.exit(2)
+        shown[path] = result.stdout
+    return shown
 
 
 def swiftc(sources: list[Path], defines: list[str], output: Path) -> int:
@@ -92,7 +103,8 @@ def swiftc(sources: list[Path], defines: list[str], output: Path) -> int:
     return result.returncode
 
 
-def run_suite(sources: list[Path], defines: list[str], label: str) -> int:
+def run_suite(sources: list[Path], defines: list[str], label: str) -> tuple[bool, int]:
+    """(собралось ли, код тестов). Несобранный стенд — не результат тестов."""
     print(f'== {label}')
     frameworks, libraries = dev_frameworks()
     with tempfile.TemporaryDirectory(prefix='session-turn-') as tmp:
@@ -116,8 +128,8 @@ def run_suite(sources: list[Path], defines: list[str], label: str) -> int:
         build = subprocess.run(command, capture_output=True, text=True)
         if build.returncode != 0:
             print(build.stderr[-6000:])
-            return build.returncode
-        return subprocess.run([str(binary)]).returncode
+            return False, build.returncode
+        return True, subprocess.run([str(binary)]).returncode
 
 
 def base_defect(at: str) -> int:
@@ -168,8 +180,8 @@ def model_tail(path: str = 'Sources/Features/Sessions/Engine/SessionViewModel.sw
     text = (root / path).read_text()
     index = text.find('extension NewChatCore.JSONValue {')
     if index < 0:
-        print('RED: в SessionViewModel нет extension NewChatCore.JSONValue')
-        sys.exit(1)
+        print('ОШИБКА: в SessionViewModel нет extension NewChatCore.JSONValue — стенд не собрать')
+        sys.exit(2)
     return 'import Foundation\nimport NewChatCore\n\n' + text[index:]
 
 
@@ -221,22 +233,32 @@ if defect:
 
 if against:
     sources = show_arguments(against)
-    current = [root / path for path in FILES]
     with tempfile.TemporaryDirectory(prefix='session-turn-red-') as tmp:
         tmp = Path(tmp)
         for index, path in enumerate(FILES):
             (tmp / f'source{index:03d}.swift').write_text(sources[path])
         (tmp / f'screen{len(FILES):03d}.swift').write_text(screen_block(sources[screen]))
-        code = run_suite(sorted(tmp.glob('*.swift')), ['SESSION_TURN_BASE'],
-                         f'RED — исходники {against[:12]} (область по сессии и секунде)')
+        built, code = run_suite(sorted(tmp.glob('*.swift')), ['SESSION_TURN_BASE'],
+                                f'RED — исходники {against[:12]} (область по сессии и секунде)')
+    if not built:
+        print(f'ОШИБКА: исходники {against[:12]} не собрались — это не RED, а поломка стенда')
+        sys.exit(2)
     # 0 здесь означал бы, что тесты на базе проходят: RED не воспроизведён.
-    sys.exit(0 if code != 0 else 1)
+    if code != 0:
+        print(f'RED воспроизведён: текущие тесты падают на {against[:12]}')
+        sys.exit(0)
+    print(f'RED не воспроизведён: на {against[:12]} текущие тесты проходят — ошибку они не ловят')
+    sys.exit(1)
 
 with tempfile.TemporaryDirectory(prefix='session-turn-green-') as tmp:
     tmp = Path(tmp)
     for index, path in enumerate(FILES):
         (tmp / f'source{index:03d}.swift').write_text((root / path).read_text())
     (tmp / f'screen{len(FILES):03d}.swift').write_text(screen_block((root / screen).read_text()))
-    code = run_suite(sorted(tmp.glob('*.swift')), [],
-                     'GREEN — идентичность хода и ключ кэша по содержимому')
+    built, code = run_suite(sorted(tmp.glob('*.swift')), [],
+                            'GREEN — идентичность хода и ключ кэша по содержимому')
+if not built:
+    print('ОШИБКА: текущее дерево не собралось — это поломка стенда, а не результат тестов')
+    sys.exit(2)
+print('GREEN: все тесты прошли' if code == 0 else f'GREEN не достигнут: тесты упали (код {code})')
 sys.exit(code)
