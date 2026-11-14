@@ -56,18 +56,37 @@ final class LocalDbSyncTests: XCTestCase {
         XCTAssertEqual(try store.chats(includeClosed: true).count, 2)
     }
 
-    /// «Вернуть из архива» работает пока только на сервере, если локальный
-    /// UPDATE обращается к несуществующему столбцу: ошибка глотается `try?`,
-    /// и архивный чат остаётся скрытым до полного ответа сервера.
-    func testRestoredChatIsVisibleInTheListAgain() throws {
-        try store.upsertChats(Data(#"{"chats":[{"id":"closed","title":"Архивная","kind":"group","created_by":"u","members":[],"closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
+    /// Возврат из архива кладёт в кеш ответ сервера целиком.
+    ///
+    /// Одного `archived_at` мало: экран читает `payload_json` — модель чата, —
+    /// и признаки архива живут в нём же. Пока столбец чистился, а тело
+    /// оставалось, восстановленный чат считался закрытым (`RoleChat.isArchived`)
+    /// и рисовался приглушённым до полной синхронизации (аудит 14.11.2026).
+    func testRestoredChatIsVisibleAndNoLongerClosed() throws {
+        try store.upsertChats(Data(#"{"chats":[{"id":"closed","title":"Архивная","kind":"group","created_by":"u","members":[],"archived_at":"2026-10-31 11:00:00","closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
 
         XCTAssertTrue(try store.chats().isEmpty)
 
-        try store.showChat(id: "closed")
+        let answer = Data(#"{"chat":{"id":"closed","title":"Архивная","kind":"group","created_by":"u","members":[],"archived_at":null,"closed_at":null}}"#.utf8)
+        try store.restoreChat(id: "closed", serverBody: answer)
 
-        XCTAssertEqual(try store.chats().map(\.id), ["closed"])
+        let restored = try XCTUnwrap(try store.chats().first)
+        XCTAssertEqual(restored.id, "closed")
+        XCTAssertNil(restored.closedAt, "модель в кеше не должна быть закрытой")
+        XCTAssertFalse(restored.isArchived, "чат не должен считаться архивным")
         XCTAssertEqual(try store.chats(includeClosed: true).count, 1)
+    }
+
+    /// Старый сервер тела ответа не прислал — признаки архива снимаются с того,
+    /// что уже лежит в кеше, иначе чат остаётся закрытым.
+    func testRestoreWithoutServerBodyStillDropsArchiveFlags() throws {
+        try store.upsertChats(Data(#"{"chats":[{"id":"closed","title":"Архивная","kind":"group","created_by":"u","members":[],"archived_at":"2026-10-31 11:00:00","closed_at":"2026-10-31 11:00:00"}]}"#.utf8))
+
+        try store.restoreChat(id: "closed")
+
+        let restored = try XCTUnwrap(try store.chats().first)
+        XCTAssertNil(restored.closedAt)
+        XCTAssertFalse(restored.isArchived)
     }
 
     // MARK: - Сообщения

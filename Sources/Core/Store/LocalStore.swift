@@ -32,50 +32,47 @@ final class LocalStore: @unchecked Sendable {
 
     /// Записать ответ `GET /api/chats` (`{"chats":[…]}`).
     func upsertChats(_ payload: Data) throws {
-        guard let chats = Self.array(in: payload, key: "chats") else { return }
+        let rows = ChatCacheRow.rows(inList: payload)
+        guard !rows.isEmpty else { return }
         try queue.write { db in
-            for element in chats {
-                guard let chat = element as? [String: Any],
-                      let id = Self.string(chat, "id"), !id.isEmpty
-                else { continue }
-                let raw = Self.data(element)
-                let lastMessage = chat["last_message"].flatMap { value -> Data? in
-                    guard value is [String: Any] else { return nil }
-                    return Self.data(value)
-                }
-                let arguments: StatementArguments = [
-                    "id": id,
-                    "title": Self.string(chat, "title"),
-                    "kind": Self.string(chat, "kind"),
-                    "room_kind": Self.string(chat, "room_kind"),
-                    "updated_at": Self.string(chat, "updated_at"),
-                    "last_message_json": lastMessage,
-                    "unread_count": Self.int(chat, "unread_count") ?? 0,
-                    "archived_at": Self.string(chat, "closed_at"),
-                    "payload_json": raw,
-                ]
-                try db.execute(
-                    sql: """
-                    INSERT INTO chat
-                      (id, title, kind, room_kind, updated_at, last_message_json,
-                       unread_count, archived_at, payload_json)
-                    VALUES
-                      (:id, :title, :kind, :room_kind, :updated_at, :last_message_json,
-                       :unread_count, :archived_at, :payload_json)
-                    ON CONFLICT(id) DO UPDATE SET
-                      title = excluded.title,
-                      kind = excluded.kind,
-                      room_kind = excluded.room_kind,
-                      updated_at = excluded.updated_at,
-                      last_message_json = excluded.last_message_json,
-                      unread_count = excluded.unread_count,
-                      archived_at = excluded.archived_at,
-                      payload_json = excluded.payload_json
-                    """,
-                    arguments: arguments
-                )
-            }
+            for row in rows { try Self.write(row, to: db) }
         }
+    }
+
+    /// Записать один чат — общая запись для списка и для ответа на возврат из
+    /// архива: строка собирается в одном месте (`ChatCacheRow`).
+    private static func write(_ row: ChatCacheRow, to db: Database) throws {
+        let arguments: StatementArguments = [
+            "id": row.id,
+            "title": row.title,
+            "kind": row.kind,
+            "room_kind": row.roomKind,
+            "updated_at": row.updatedAt,
+            "last_message_json": row.lastMessageJSON,
+            "unread_count": row.unreadCount,
+            "archived_at": row.archivedAt,
+            "payload_json": row.payloadJSON,
+        ]
+        try db.execute(
+            sql: """
+            INSERT INTO chat
+              (id, title, kind, room_kind, updated_at, last_message_json,
+               unread_count, archived_at, payload_json)
+            VALUES
+              (:id, :title, :kind, :room_kind, :updated_at, :last_message_json,
+               :unread_count, :archived_at, :payload_json)
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title,
+              kind = excluded.kind,
+              room_kind = excluded.room_kind,
+              updated_at = excluded.updated_at,
+              last_message_json = excluded.last_message_json,
+              unread_count = excluded.unread_count,
+              archived_at = excluded.archived_at,
+              payload_json = excluded.payload_json
+            """,
+            arguments: arguments
+        )
     }
 
     /// Чаты из базы. Порядок — как на сервере: по свежести.
@@ -103,13 +100,30 @@ final class LocalStore: @unchecked Sendable {
 
     /// Вернуть чат из архива в кеше: обратная операция к `hideChat`.
     /// Столбца `closed_at` в локальной схеме нет — серверные `closed_at` и
-    /// `archived_at` проецируются в один `archived_at` (см. `chat(from:)`).
-    func showChat(id: String) throws {
+    /// `archived_at` проецируются в один `archived_at` (см. `ChatCacheRow`).
+    ///
+    /// Одного `archived_at` мало: экран читает `payload_json` — модель чата, —
+    /// и признаки архива живут в нём же. Поэтому в кеш идёт тело ответа сервера
+    /// целиком: иначе восстановленный чат оставался закрытым
+    /// (`RoleChat.isArchived`) и рисовался приглушённым
+    /// (`RoleChatsScreen.swift:788`) до следующей полной синхронизации.
+    /// Тела нет (старый сервер) или оно не про этот чат — берём то, что лежит,
+    /// и снимаем признаки архива уже в нём.
+    func restoreChat(id: String, serverBody: Data? = nil) throws {
         try queue.write { db in
-            try db.execute(
-                sql: "UPDATE chat SET archived_at = NULL WHERE id = ?",
+            let stored = try Data.fetchOne(
+                db,
+                sql: "SELECT payload_json FROM chat WHERE id = ?",
                 arguments: [id]
             )
+            if let row = ChatCacheRow.restored(stored: stored, serverBody: serverBody), row.id == id {
+                try Self.write(row, to: db)
+            } else {
+                try db.execute(
+                    sql: "UPDATE chat SET archived_at = NULL WHERE id = ?",
+                    arguments: [id]
+                )
+            }
         }
     }
 

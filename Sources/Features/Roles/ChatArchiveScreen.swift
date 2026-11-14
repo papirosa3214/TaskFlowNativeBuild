@@ -102,8 +102,11 @@ struct ChatArchiveScreen: View {
 
     private func restore(_ chat: RoleChat) async {
         do {
-            _ = try await api.unarchiveRoleChat(id: chat.id)
-            try? LocalStore.shared.showChat(id: chat.id)
+            // Ответ сервера кладём в кеш как есть: это актуальная модель чата.
+            // Пока в кеше лежали признаки архива, восстановленный чат считался
+            // закрытым и рисовался приглушённым до полной синхронизации.
+            let body = try await api.unarchiveRoleChatBody(id: chat.id)
+            try LocalStore.shared.restoreChat(id: chat.id, serverBody: body)
             await load()
         } catch { errorMessage = error.localizedDescription }
     }

@@ -93,9 +93,13 @@ public extension APIClient {
     }
 
     /// Вернуть из архива: `POST /chats/{id}/unarchive`.
-    func unarchiveRoleChat(id: String) async throws -> RoleChat {
-        let response: RoleChatEnvelope = try await request(.post, "/chats/\(id)/unarchive", body: [String: String]())
-        return response.chat
+    ///
+    /// Тело ответа отдаём как есть: `RoleChat` только разбирается (`Decodable`),
+    /// собрать его обратно нельзя, а кешу нужна именно модель сервера —
+    /// `LocalStore.restoreChat` кладёт её в строку чата целиком.
+    func unarchiveRoleChatBody(id: String) async throws -> Data {
+        let (data, _) = try await requestRaw(.post, "/chats/\(id)/unarchive", body: [String: String]())
+        return data
     }
 
     /// «Удалить насовсем»: откатить нельзя, подтверждение — на клиенте.
