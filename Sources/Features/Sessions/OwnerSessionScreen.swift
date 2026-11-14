@@ -49,6 +49,10 @@ struct OwnerSessionScreen: View {
     @State private var feedPosition = ScrollPosition(edge: .bottom)
     /// Замер контекста сессии для кольца в поле ввода (как в комнате).
     @State private var context: ChatContextSnapshot?
+    /// Список дел агента Pi в этой сессии — готовый ответ сервера
+    /// (`GET /api/sessions/:id/todos`). Состояние одно на активную сессию:
+    /// при переключении очищается, поздний ответ чужой сессии не ложится.
+    @State private var todos: SessionTodos?
     @Environment(\.dismiss) private var dismiss
     @Environment(SecretaryVoiceViewModel.self) private var voiceSession: SecretaryVoiceViewModel?
     /// Метки этой сессии (название, проект, закрепление) — из списка сессий.
@@ -193,9 +197,10 @@ struct OwnerSessionScreen: View {
             VStack(spacing: 0) {
                 ChatComposerPill(
                     // Работающие роли-субагенты — в пилюле, как в чатах ролей.
-                    plans: [], members: [], status: ChatComposerStatus(running: SessionRoleCall.running(in: model.liveTurn.items)),
-                    onDeletePlan: { _ in }, onOpenChat: { _ in },
+                    plans: todoPlans, members: [], status: ChatComposerStatus(running: SessionRoleCall.running(in: model.liveTurn.items)),
+                    onDeletePlan: nil, onOpenChat: { _ in },
                     onSendNow: { _ in }, onRemove: { _ in },
+                    planHeader: todoHeader,
                     onStop: model.isStreaming ? { Task { await model.abort() } } : nil,
                     showsScrollDown: !isNearBottom,
                     onScrollDown: { scrollDownTick += 1 },
@@ -281,6 +286,7 @@ struct OwnerSessionScreen: View {
             projects = (try? await APIClient().projects()) ?? []
             await model.loadModels()
             await reloadContext()
+            await reloadTodos()
         }
         // Внутри сессии нижней панели вкладок нет — как в комнате чата
         // (владелец 08.11.2026: панель только на главных экранах).
@@ -288,7 +294,16 @@ struct OwnerSessionScreen: View {
         // Ответ закончен — перечитываем снимок: в нём ответ уже с разметкой.
         .onChange(of: model.isStreaming) { _, streaming in
             workStartedAt = streaming ? Date() : nil
-            if !streaming { Task { await model.refresh(); await reloadContext() } }
+            if !streaming { Task { await model.refresh(); await reloadContext(); await reloadTodos() } }
+        }
+        // Список дел: `todo` пишет запись в транскрипт, а не разбирается на
+        // телефоне. Перечитываем готовый ответ после того, как запись пришла
+        // (`message_end` — в т.ч. запись toolResult: `tool_end` бывает раньше
+        // записи) и после восстановления/смены сессии.
+        .onChange(of: model.state.messages.count) { _, _ in Task { await reloadTodos() } }
+        .onChange(of: model.activeSessionID) { _, _ in
+            todos = nil
+            Task { await reloadTodos() }
         }
         .onChange(of: voiceSession?.presentation.isActive ?? false) { _, active in
             if !active { Task { await model.refresh() } }
@@ -408,6 +423,31 @@ struct OwnerSessionScreen: View {
     private func reloadContext() async {
         guard let id = model.activeSessionID else { return }
         context = try? await SessionAPIClient().context(sessionID: id)
+    }
+
+    /// Список дел агента Pi в активной сессии — заметка и последняя запись
+    /// транскрипта. Запрос из прошлой сессии отбрасывается: переключились, пока ответ был в пути.
+    private func reloadTodos() async {
+        guard let id = model.activeSessionID else { todos = nil; return }
+        guard let response = try? await SessionAPIClient().todos(sessionID: id),
+              !Task.isCancelled else { return }
+        guard id == model.activeSessionID else { return }
+        guard let incoming = response.todos else { return }
+        guard SessionTodos.isNewer(incoming, than: todos) else { return }
+        todos = incoming
+    }
+
+    /// План для полосы чек-листа над полем ввода. Пусто — полосы нет.
+    private var todoPlans: [ChatWorkPlan] {
+        guard let id = model.activeSessionID, let todos else { return [] }
+        return [todos.plan(sessionID: id)].compactMap { $0 }
+    }
+
+    /// Строка заголовка: у сессии нет роли, и «Список дел» говорит сам за себя.
+    private func todoHeader(_ plan: ChatWorkPlan) -> String {
+        var text = "Список дел · \(plan.doneCount) из \(plan.items.count)"
+        if let current = plan.current { text += " · сейчас: \(current.title)" }
+        return text
     }
 
     private func reloadSummary() async {

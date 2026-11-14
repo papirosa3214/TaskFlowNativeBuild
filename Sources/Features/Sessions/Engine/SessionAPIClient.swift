@@ -183,6 +183,12 @@ final class SessionAPIClient: @unchecked Sendable {
         try await request(method: "GET", path: "/api/sessions/\(sessionID)")
     }
 
+    /// Список дел агента Pi в сессии — готовым ответом сервера: пункты, их
+    /// статусы и счётчики считает сервер, клиент только показывает.
+    func todos(sessionID: String) async throws -> SessionTodosResponse {
+        try await requestDecoding(method: "GET", path: "/api/sessions/\(sessionID)/todos")
+    }
+
     func events(sessionID: String, after cursor: String?) async throws -> SessionReconnectPayload {
         try await request(
             method: "GET",

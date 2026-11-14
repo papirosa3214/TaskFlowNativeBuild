@@ -10,10 +10,13 @@ struct ChatComposerPill: View {
     let plans: [ChatWorkPlan]
     let members: [RoleChatMember]
     let status: ChatComposerStatus
-    let onDeletePlan: (ChatWorkPlan) -> Void
+    let onDeletePlan: ((ChatWorkPlan) -> Void)?
     let onOpenChat: (String) -> Void
     let onSendNow: (ChatComposerStatus.Queued) -> Void
     let onRemove: (ChatComposerStatus.Queued) -> Void
+    /// Своя строка заголовка чек-листа: у сессий он «Список дел», у чатов
+    /// ролей — как раньше («План · роль · …»). nil — как раньше.
+    var planHeader: ((ChatWorkPlan) -> String)? = nil
     /// Идёт ход роли: в пилюле появляется сегмент «Стоп» (та же остановка,
     /// что кнопка в поле ввода).
     var onStop: (() -> Void)? = nil
@@ -290,7 +293,8 @@ struct ChatComposerPill: View {
                 ChatWorkPlanRows(plans: plans, members: members,
                                  initiallyExpanded: true,
                                  onDelete: onDeletePlan,
-                                 onHeaderTap: collapse)
+                                 onHeaderTap: collapse,
+                                 headerText: planHeader)
             }
             if !running.isEmpty {
                 if plans.isEmpty {

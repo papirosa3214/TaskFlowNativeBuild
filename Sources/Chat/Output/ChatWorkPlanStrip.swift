@@ -89,6 +89,9 @@ struct ChatWorkPlanRows: View {
     /// Нажатие на строку плана: в пилюле над полем ввода — свернуть чек-лист
     /// обратно в пилюлю (владелец 11.11.2026). Нет — строка раскрывает пункты.
     var onHeaderTap: (() -> Void)? = nil
+    /// Своя строка заголовка — у сессий членов ролей нет, а имя «Список дел»
+    /// важнее общего «План · Роль». Пункты, кружки и разворот те же.
+    var headerText: ((ChatWorkPlan) -> String)? = nil
     @State private var expanded: Set<String> = []
 
     var body: some View {
@@ -135,7 +138,7 @@ struct ChatWorkPlanRows: View {
                 Image(systemName: rowSymbol(plan))
                     .foregroundStyle(rowTint(plan))
                     .accessibilityHidden(true)
-                Text(plan.summary(roleName: name(plan.roleID)))
+                Text(headerText?(plan) ?? plan.summary(roleName: name(plan.roleID)))
                     .tfText(.action)
                     .foregroundStyle(Color.tfSub)
                     .lineLimit(1)
