@@ -776,6 +776,11 @@ struct ChatTypingPlaceholder: View {
     let phrases: [String]
     @State private var shown = ""
 
+    /// Смена фразы — раз в минуту (владелец 14.11.2026: «сделай, чтобы интервал
+    /// смены был раз в минуту»). Печать и стирание остаются прежними и идут
+    /// внутри этой минуты: целая фраза стоит до конца интервала.
+    private static let period: Duration = .seconds(60)
+
     var body: some View {
         Text(shown.isEmpty ? " " : shown)
             .foregroundStyle(Color(uiColor: .placeholderText))
@@ -786,17 +791,21 @@ struct ChatTypingPlaceholder: View {
     private func run() async {
         var index = 0
         while !Task.isCancelled, !phrases.isEmpty {
+            let started = ContinuousClock.now
             let phrase = phrases[index % phrases.count]
             for count in 1...max(phrase.count, 1) {
                 shown = String(phrase.prefix(count))
                 try? await Task.sleep(for: .milliseconds(55))
             }
-            try? await Task.sleep(for: .milliseconds(1600))
+            // Фраза целиком стоит до конца минуты — смена строго раз в минуту.
+            let elapsed = started.duration(to: .now)
+            if elapsed < Self.period {
+                try? await Task.sleep(for: Self.period - elapsed)
+            }
             while !shown.isEmpty, !Task.isCancelled {
                 shown.removeLast()
                 try? await Task.sleep(for: .milliseconds(25))
             }
-            try? await Task.sleep(for: .milliseconds(350))
             index += 1
         }
     }
