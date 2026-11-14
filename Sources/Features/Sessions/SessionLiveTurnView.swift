@@ -224,7 +224,7 @@ private struct SessionLiveItemsContent: View {
                 // только флаг). Готовые куски — переводом, остальное — как есть.
                 let shown = RoleTranslator.shared.display(text)
                 RoleReplyMarkdown(text: shown, color: textColor, fade: fade, isStreaming: isStreaming,
-                                  serverBlocks: shown == text ? ChatLiveBlockRegistry.shared.blocks(for: text)?.map(\.block) : nil)
+                                  prepared: shown == text ? SessionLiveReplyContent.prepared(shown: text) : nil)
             case .step(let step) where SessionOwnerQuestion.question(in: step) != nil:
                 // Вопрос Помощника владельцу — карточкой с вариантами (сервер 4b774d50).
                 // Ответ меняет запись вопроса, ход продолжается с ним.
@@ -874,6 +874,17 @@ private struct SessionRoleCallRow: View {
         case .error: "не ответила"
         default: "ответила"
         }
+    }
+}
+
+/// Разметка куска живого ответа сессии — та же подготовленная, что в комнате
+/// роли (`RoleLiveTurnView`): ищем по началу текста и обрезаем прозу по
+/// проявленной доле. Поиск по точному тексту реплики находил только ответ из
+/// одного блока, а ответ из нескольких блоков вставал заглушкой «Не удалось
+/// получить подготовленное содержимое» (владелец 14.11.2026).
+enum SessionLiveReplyContent {
+    static func prepared(shown: String) -> [ChatRichSegment]? {
+        ChatRichContent.liveSegments(shown: shown)
     }
 }
 
