@@ -103,6 +103,20 @@ struct SessionLiveTurn: Equatable {
         ChatLiveBlockRegistry.shared.register(decoded, for: text, scope: scope)
     }
 
+    /// Серверный хвост — начальное отображение, не история и не курсор.
+    /// Уже принятый текст имеет приоритет над более старым снимком.
+    mutating func installBridge(_ live: SessionJSON?, sessionID: String) {
+        bind(sessionID: sessionID)
+        guard case .object(let live)? = live,
+              live["coverage"]?.sessionString == "current_response_only",
+              case .bool(true)? = live["streaming"],
+              !items.contains(where: { if case .text = $0 { return true }; return false }),
+              let text = live["displayText"]?.sessionString, !text.isEmpty else { return }
+        apply(type: "assistant_text_delta",
+              payload: ["delta": .string(text), "text": .string(text), "blocks": live["textBlocks"] ?? .null],
+              sessionID: sessionID)
+    }
+
     mutating func reset() {
         items = []
         textPart = nil
@@ -204,10 +218,10 @@ struct SessionLiveTurn: Equatable {
             let current = textPart
             textPart = nil
             guard let full = payload["text"]?.sessionString, !full.isEmpty else { return }
-            // Без подготовленной разметки хвост класть некуда: экран ищет
-            // блоки по тексту пункта, и голая строка встала бы заглушкой.
-            // Показанное размеченное начало не подменяем.
-            guard Self.register(payload["blocks"], for: full, scope: scope) else { return }
+            // Даже без блоков авторитетный хвост показывается обычным текстом.
+            // Разбор на телефоне не выполняется: SessionReplyMarkdown имеет
+            // простой текстовый fallback.
+            Self.register(payload["blocks"], for: full, scope: scope)
             // Контракт сервера: `text` здесь — весь текст ПОСЛЕДНЕЙ текстовой
             // части сообщения. Если это другая часть, чем показанная сейчас
             // (её держали конвертом, и куски не приходили), хвост встаёт своим

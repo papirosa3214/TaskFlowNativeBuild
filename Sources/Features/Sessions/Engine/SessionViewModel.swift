@@ -67,10 +67,6 @@ final class SessionViewModel {
     /// этому курсору, а не по источнику события (ревью владельца 14.11.2026).
     private var liveTurnPoint: SessionEventPoint?
 
-    /// Готовый ответ, пришедший событием `message_end`: текст и разметка ровно
-    /// те, что прислал сервер. Нужен, когда живого хода уже нет, — иначе
-    /// готовая реплика осталась бы без разметки и показала заглушку.
-    @ObservationIgnored private var lastEventReply: SessionReply?
     private var sessionGeneration: UInt64 = 0
     /// Очередь установки снимка: ответы не по порядку и события, пришедшие
     /// за время запроса, не должны ни затирать новый снимок, ни пропадать
@@ -317,16 +313,15 @@ final class SessionViewModel {
     /// пока живого хода нет — готовые ответы.
     var liveFeedRows: [SessionFeedRow] {
         state.messages.enumerated().compactMap { index, message in
-            let id = "live-\(index)-\(message.role)"
+            let id = message.id ?? "live-\(index)-\(message.role)"
             if message.role == "user" { return .user(id: id, text: message.text) }
             if message.role == "assistant", liveTurn.isEmpty, !message.text.isEmpty {
                 // Разметка — та же, что в истории: текст и блоки из события
                 // сервера (`message_end`). Без неё экран показал бы «Не удалось
                 // получить подготовленное содержимое» вместо самого ответа.
-                let reply = lastEventReply ?? SessionReply(text: message.text)
-                return .reply(id: id, reply: reply.text.isEmpty
-                              ? SessionReply(text: message.text, blocks: reply.blocks)
-                              : reply)
+                return .reply(id: id, reply: SessionReply(
+                    text: message.text, blocks: SessionLiveTurn.blocks(message.blocks)
+                ))
             }
             return nil
         }
@@ -574,28 +569,17 @@ final class SessionViewModel {
         if isNew, event.sessionId == activeSessionID {
             if event.type == "agent_start" {
                 liveTurnHasGaps = false
-                lastEventReply = nil
             }
             updateLiveTurnStopState(event)
             liveTurn.apply(type: event.type, payload: event.payload, sessionID: event.sessionId)
             noteLiveTurnApplied(event)
         }
         SessionReducer.apply(event, to: &state)
-        if event.type == "message_end" { noteEventReply(event) }
         if event.sessionId == activeSessionID, event.type == "agent_settled" {
             Task { await refreshSnapshot() }
         } else if event.sessionId != activeSessionID, event.type == "agent_settled" {
             Task { await refreshSessions() }
         }
-    }
-
-    /// Запомнить готовый ответ из события: в `message_end` сервер присылает
-    /// тот же подготовленный текст и те же блоки, что лежат в снимке. Из них
-    /// рисуется реплика, пока снимок ещй не пришёл.
-    private func noteEventReply(_ event: SessionEventEnvelope) {
-        guard event.sessionId == activeSessionID,
-              let text = event.payload["text"]?.sessionString, !text.isEmpty else { return }
-        lastEventReply = SessionReply(text: text, blocks: SessionLiveTurn.blocks(event.payload["blocks"]))
     }
 
     /// Запомнить, до какого курсора живой ход уже показал ленту. Курсор другой
@@ -722,6 +706,15 @@ final class SessionViewModel {
                         updateLiveTurnStopState(event)
                         liveTurn.apply(type: event.type, payload: event.payload, sessionID: sessionID)
                         noteLiveTurnApplied(event)
+                    }
+                    // live не имеет своей точки. Используем только при отсутствии
+                    // событий смены сообщения и более свежего текста; очередь
+                    // сокета, пришедшая в полёте, всегда имеет приоритет.
+                    if carried.isEmpty, let snapshot = payload.snapshot, snapshot.isStreaming,
+                       !replay.contains(where: {
+                           ["agent_start", "agent_settled", "message_start", "message_end"].contains($0.type)
+                       }) {
+                        liveTurn.installBridge(snapshot.live, sessionID: sessionID)
                     }
                     if keepsLiveTurn, liveReplay.count < replay.count {
                         // Честно: часть окна новее точки снимка в ход не пошла —
@@ -859,6 +852,9 @@ final class SessionViewModel {
             liveTurn.reset()
             liveTurnHasGaps = false
             liveTurnPoint = nil
+        }
+        if snapshot.isStreaming {
+            liveTurn.installBridge(snapshot.live, sessionID: snapshot.id)
         }
         promptMode = snapshot.isStreaming ? .followUp : .prompt
     }

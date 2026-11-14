@@ -5,6 +5,31 @@ import XCTest
 /// ответом, текст. Владелец 12.11.2026: «вернуть живой ход, который был в
 /// старой версии… инструменты, DIF».
 final class SessionLiveTurnTests: XCTestCase {
+    @objc func testMessageEndWithoutBlocksStillDisplaysAuthoritativeTail() {
+        var turn = SessionLiveTurn()
+        turn.apply(type: "agent_start", payload: [:])
+        turn.apply(type: "message_end", payload: ["text": .string("Complete answer")])
+        XCTAssertEqual(turn.items.count, 1)
+        guard case .text(let text)? = turn.items.first else { return XCTFail("Missing final text") }
+        XCTAssertEqual(text, "Complete answer")
+    }
+
+    @objc func testSnapshotBridgeDoesNotOverwriteAlreadyReplayedText() {
+        var turn = SessionLiveTurn()
+        let live: JSONValue = .object([
+            "streaming": .bool(true), "coverage": .string("current_response_only"),
+            "displayText": .string("Snapshot")
+        ])
+        turn.installBridge(live, sessionID: "a")
+        guard case .text(let first)? = turn.items.first else { return XCTFail("Missing bridge") }
+        XCTAssertEqual(first, "Snapshot")
+        turn.apply(type: "assistant_text_delta", payload: ["delta": .string("Newer"), "text": .string("Newer")], sessionID: "a")
+        turn.installBridge(live, sessionID: "a")
+        guard case .text(let last)? = turn.items.last else { return XCTFail("Missing newer text") }
+        XCTAssertEqual(last, "Newer")
+        XCTAssertEqual(turn.items.count, 1)
+    }
+
     private func obj(_ pairs: [String: JSONValue]) -> JSONValue { .object(pairs) }
 
     /// Размышление растёт во время хода одной мыслью, а текст её закрывает.
@@ -495,7 +520,7 @@ final class SessionLiveTurnTests: XCTestCase {
                    payload: ["delta": .string("Начало"), "text": .string("Начало"),
                              "blocks": replyBlocks("Начало")], sessionID: "s")
         turn.apply(type: "message_end", payload: ["text": .string("Начало и хвост")], sessionID: "s")
-        XCTAssertEqual(textItems(turn), ["Начало"], "текст без разметки некуда положить")
+        XCTAssertEqual(textItems(turn), ["Начало и хвост"], "авторитетный хвост показывается и без разметки")
     }
 
     // MARK: — Одна разметка в живом ходе и в истории (владелец 14.11.2026)

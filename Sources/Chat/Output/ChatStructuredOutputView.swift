@@ -11,6 +11,8 @@ struct ChatStructuredOutputView: View {
     var checklist: ChecklistSyncContext? = nil
     /// Кнопка «Запустить» у блока `command` — только владельцу и не в режиме выбора.
     var allowsCommands = false
+    /// Опция сессии: общий компонент таблицы с закреплённой палитрой.
+    var usesChatTables = false
 
     /// Разобранный конверт кэшируется по строке JSON: `document` читается на
     /// каждом проходе `body`, а `JSONDecoder` на каждый вызов — это работа,
@@ -223,14 +225,24 @@ struct ChatStructuredOutputView: View {
                 if let title = block.title, !title.isEmpty {
                     Text(title).tfText(.action).foregroundStyle(Color.tfChatText)
                 }
-                StructuredDocumentBlocksView(blocks: [
-                    .table([
-                        NoteTableRow(cells: columns.map { NoteTableCell(runs: [RichRun(text: $0)], isHeader: true) })
-                    ] + rows.map { row in
-                        NoteTableRow(cells: Array((row + Array(repeating: "", count: columns.count)).prefix(columns.count))
-                            .map { NoteTableCell(runs: [RichRun(text: $0)], isHeader: false) })
-                    })
-                ])
+                if usesChatTables {
+                    ChatTableView(table: ChatTable(
+                        header: columns,
+                        alignments: Array(repeating: .leading, count: columns.count),
+                        rows: rows.map { row in
+                            Array((row + Array(repeating: "", count: columns.count)).prefix(columns.count))
+                        }
+                    ), color: .tfChatText)
+                } else {
+                    StructuredDocumentBlocksView(blocks: [
+                        .table([
+                            NoteTableRow(cells: columns.map { NoteTableCell(runs: [RichRun(text: $0)], isHeader: true) })
+                        ] + rows.map { row in
+                            NoteTableRow(cells: Array((row + Array(repeating: "", count: columns.count)).prefix(columns.count))
+                                .map { NoteTableCell(runs: [RichRun(text: $0)], isHeader: false) })
+                        })
+                    ])
+                }
             }
             .accessibilityIdentifier("chat.structured-output.table")
         } else {

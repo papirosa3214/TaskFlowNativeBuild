@@ -915,8 +915,9 @@ enum SessionLiveReplyContent {
     }
 
     /// Живой ход и история: одна и та же разметка из серверных блоков.
-    static func prepared(shown: String, scope: String? = nil) -> [ChatRichSegment]? {
-        ChatRichContent.replySegments(shown: shown, scope: scope)
+    static func prepared(shown: String, scope: String?) -> [ChatRichSegment]? {
+        guard let scope else { return nil }
+        return ChatRichContent.replySegments(shown: shown, scope: scope)
     }
 }
 
@@ -934,7 +935,7 @@ struct SessionReplyMarkdown: View {
         // а не заглушку «Не удалось получить подготовленное содержимое».
         let shown = segments == nil ? RoleTranslator.shared.display(text) : text
         RoleReplyMarkdown(text: shown, color: color, fade: fade, isStreaming: isStreaming,
-                          prepared: segments ?? Self.plainText(shown))
+                          prepared: segments ?? Self.plainText(shown), usesChatTables: true)
     }
 
     private static func plainText(_ text: String) -> [ChatRichSegment] {

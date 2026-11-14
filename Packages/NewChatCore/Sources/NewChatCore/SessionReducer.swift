@@ -75,7 +75,12 @@ public enum SessionReducer {
             }
         case "message_end":
             if let rendered = renderedMessage(from: event.payload["message"]) {
-                state.messages.append(rendered)
+                state.messages.append(SessionRenderedMessage(
+                    role: rendered.role,
+                    text: event.payload["text"]?.stringValue ?? rendered.text,
+                    id: event.entryId ?? event.cursor,
+                    blocks: event.payload["blocks"]
+                ))
             }
             state.transientAssistantText = ""
         case "agent_start", "turn_start":

@@ -2,6 +2,21 @@ import XCTest
 @testable import NewChatCore
 
 final class SessionReducerTests: XCTestCase {
+    func testCompletedRepliesKeepTheirOwnIdentityTextAndBlocks() throws {
+        var state = SessionState(snapshot: .fixture(id: "root"))
+        for (cursor, text) in [("epoch:1", "First"), ("epoch:2", "Second")] {
+            let end = try event("""
+            {"cursor":"\(cursor)","sessionId":"root","type":"message_end","timestamp":"t","payload":{"text":"\(text)","blocks":[{"type":"text","text":"\(text)"}],"message":{"role":"assistant","content":[{"type":"text","text":"raw"}]}}}
+            """)
+            SessionReducer.apply(end, to: &state)
+            SessionReducer.apply(end, to: &state)
+        }
+        XCTAssertEqual(state.messages.map(\.text), ["First", "Second"])
+        XCTAssertEqual(state.messages.map(\.id), ["epoch:1", "epoch:2"])
+        XCTAssertEqual(state.messages[0].blocks?.arrayValue?.first?["text"]?.stringValue, "First")
+        XCTAssertEqual(state.messages[1].blocks?.arrayValue?.first?["text"]?.stringValue, "Second")
+    }
+
     func testSnapshotDecodesTreeAndParentRelationship() throws {
         let json = #"""
         {
@@ -33,7 +48,7 @@ final class SessionReducerTests: XCTestCase {
         SessionReducer.apply(end, to: &state)
 
         XCTAssertEqual(state.transientAssistantText, "")
-        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Hello")])
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Hello", id: "c2")])
         XCTAssertEqual(state.lastCursor, "c2")
     }
 
@@ -149,7 +164,7 @@ final class SessionReducerTests: XCTestCase {
             "в живой ход — ровно окно после точки, по порядку"
         )
         XCTAssertEqual(state.transientAssistantText, "")
-        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")],
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail", id: "e:12")],
                        "событие не новее точки не повторяет запись снимка")
         XCTAssertEqual(state.lastCursor, "e:12", "догон продолжается с последнего проигранного")
         XCTAssertFalse(state.needsSnapshotReset)
@@ -179,7 +194,7 @@ final class SessionReducerTests: XCTestCase {
         SessionReducer.apply(payload, to: &state)
 
         XCTAssertEqual(state.snapshot?.id, "root")
-        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")])
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail", id: "e:512")])
         XCTAssertEqual(state.lastCursor, "e:512",
                        "за вытесненную дыру 501…511 курсор не откатывается")
         XCTAssertFalse(state.needsSnapshotReset)
@@ -211,7 +226,7 @@ final class SessionReducerTests: XCTestCase {
 
         SessionReducer.apply(payload, replay: replay, to: &state)
 
-        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")],
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail", id: "e:512")],
                        "окончание хода из очереди не теряется")
         XCTAssertEqual(state.snapshot?.isStreaming, false)
         XCTAssertEqual(state.snapshot?.isIdle, true)
@@ -266,7 +281,7 @@ final class SessionReducerTests: XCTestCase {
         SessionReducer.apply(payload, replay: replay, to: &state)
 
         XCTAssertEqual(state.transientAssistantText, "", "e:12 закрывает ответ")
-        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail")],
+        XCTAssertEqual(state.messages, [SessionRenderedMessage(role: "assistant", text: "Tail", id: "e:12")],
                        "событие, пришедшее во время ответа, не теряется")
         XCTAssertEqual(state.lastCursor, "e:12", "догон продолжается с последнего проигранного")
     }

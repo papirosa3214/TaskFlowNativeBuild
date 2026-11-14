@@ -120,6 +120,7 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
     /// `docs/current/owner-session-snapshot-events.md`). Всё, что не новее
     /// этой точки, уже в `entries`; новее — приходит событиями. У старого
     /// сервера полей нет, и покрытие снимка неизвестно.
+    public let live: JSONValue?
     public let eventCursor: String?
     public let eventCursorEpoch: String?
     public let eventCursorSeq: Int?
@@ -139,7 +140,8 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
         tree: [JSONValue],
         eventCursor: String? = nil,
         eventCursorEpoch: String? = nil,
-        eventCursorSeq: Int? = nil
+        eventCursorSeq: Int? = nil,
+        live: JSONValue? = nil
     ) {
         self.id = id
         self.cwd = cwd
@@ -153,6 +155,7 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
         self.isIdle = isIdle
         self.entries = entries
         self.tree = tree
+        self.live = live
         self.eventCursor = eventCursor
         self.eventCursorEpoch = eventCursorEpoch
         self.eventCursorSeq = eventCursorSeq
@@ -175,7 +178,8 @@ public struct SessionSnapshot: Equatable, Sendable, Identifiable, JSONValueDecod
             tree: json["tree"]?.arrayValue ?? [],
             eventCursor: json["eventCursor"]?.stringValue,
             eventCursorEpoch: json["eventCursorEpoch"]?.stringValue,
-            eventCursorSeq: json["eventCursorSeq"]?.intValue
+            eventCursorSeq: json["eventCursorSeq"]?.intValue,
+            live: json["live"]
         )
     }
 }
@@ -263,10 +267,14 @@ public struct SessionReconnectPayload: Equatable, Sendable, JSONValueDecodable {
 }
 
 public struct SessionRenderedMessage: Equatable, Sendable {
+    public let id: String?
+    public let blocks: JSONValue?
     public let role: String
     public let text: String
 
-    public init(role: String, text: String) {
+    public init(role: String, text: String, id: String? = nil, blocks: JSONValue? = nil) {
+        self.id = id
+        self.blocks = blocks
         self.role = role
         self.text = text
     }

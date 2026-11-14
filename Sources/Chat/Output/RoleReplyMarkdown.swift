@@ -3,7 +3,7 @@ import SwiftUI
 /// Отображает только подготовленные сервером блоки; исходный текст не разбирает.
 struct RoleReplyMarkdown: View, Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared && lhs.textGroup == rhs.textGroup
+        lhs.text == rhs.text && lhs.color == rhs.color && lhs.allowsCommands == rhs.allowsCommands && lhs.fade == rhs.fade && lhs.isStreaming == rhs.isStreaming && lhs.serverBlocks == rhs.serverBlocks && lhs.prepared == rhs.prepared && lhs.usesChatTables == rhs.usesChatTables && lhs.textGroup == rhs.textGroup
     }
 
     let text: String
@@ -23,6 +23,8 @@ struct RoleReplyMarkdown: View, Equatable {
     /// Куски, уже собранные из блоков сервера (живой ход: блок, обрезанный по
     /// открытой части). Есть — текст не раскладывается.
     var prepared: [ChatRichSegment]? = nil
+    /// Сессии используют согласованную таблицу чата и в JSON-конверте.
+    var usesChatTables = false
     /// Рассуждения используют собственную группу внутри Markdown, а не внешний font.
     var textGroup: TFChatTypeGroup = .body
     /// Жирный читает «Подзаголовок» — без этого счётчика `.equatable()` не
@@ -92,9 +94,9 @@ struct RoleReplyMarkdown: View, Equatable {
         case .widget(let json):
             ChatWidgetView(json: json, widgetKey: widgetKey, checklist: checklist)
         case .structuredJSON(let json):
-            ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands && fade == nil)
+            ChatStructuredOutputView(json: json, checklist: checklist, allowsCommands: allowsCommands && fade == nil, usesChatTables: usesChatTables)
         case .structuredJSONStreaming(let json):
-            ChatStructuredOutputView(json: json, isStreaming: true, checklist: checklist)
+            ChatStructuredOutputView(json: json, isStreaming: true, checklist: checklist, usesChatTables: usesChatTables)
         case .html(let html):
             ChatHTMLView(html: html, allowsCommands: allowsCommands && fade == nil)
         case .pending(let kind):
