@@ -31,6 +31,14 @@
    та же строка, что `RoleChatLiveTurn.startedAt`. `SessionLiveTurn` помнит
    `sessionID`, отдаёт `scope` и пишет разметку с ним; `SessionViewModel`
    передаёт `event.sessionId` и ставит `liveTurn.sessionID` в `installSnapshot`.
+   **Устарело в тот же день:** этого типа в коде больше нет. Ревью нашло, что
+   два хода в одну секунду получали одну область и событие без `agent_start`
+   переприсваивало сессию, поэтому `ChatLiveBlockScope` заменён на
+   `ChatLiveTurnIdentity` (сессия + номер хода, `scope` = `"turn:<номер>"`) —
+   `Sources/Core/Models/ChatServerBlock.swift:150`,
+   `Sources/Features/Sessions/SessionLiveTurn.swift:37`,
+   отчёт `docs/2026-11-14-turn-identity.md`. Пункт оставлен как история
+   решения, действующим его читать нельзя.
 3. **Сквозной проброс.** `OwnerSessionScreen` → `SessionLiveTurnBubble` →
    `SessionLiveItemsList` → `SessionLiveItemsContent` → разметка, окно
    размышлений, шторка размышлений и пейсер (`RoleLiveTextPacer.ingest(_:
