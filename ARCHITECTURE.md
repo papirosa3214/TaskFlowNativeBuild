@@ -28,7 +28,7 @@
 | `docs/` | рабочие документы проекта |
 | `archive/` | то, что выведено из работы, но выбрасывать рано |
 
-Всего 751 файл Swift по таргетам: `Sources/` — 484, `Tests/` — 184,
+Всего 754 файла Swift по таргетам: `Sources/` — 486, `Tests/` — 185,
 `UITests/` — 51, `VoiceMessageLab/` — 11, `VoiceMessageLabTests/` — 7,
 `Packages/` — 8, `Widgets/` — 3, `SnapshotTests/` — 2, `Broadcast/` — 1.
 
