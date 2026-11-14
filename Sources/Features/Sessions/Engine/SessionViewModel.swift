@@ -329,7 +329,8 @@ final class SessionViewModel {
     /// пишет сервер мимо потока событий).
     func refresh() async {
         guard let id = activeSessionID,
-              let response = try? await apiClient.snapshot(sessionID: id) else { return }
+              let response = try? await apiClient.snapshot(sessionID: id),
+              activeSessionID == id else { return }
         installSnapshot(response.session)
     }
 
@@ -516,6 +517,7 @@ final class SessionViewModel {
         do {
             if let cursor = state.lastCursor {
                 let payload = try await apiClient.events(sessionID: sessionID, after: cursor)
+                guard activeSessionID == sessionID else { return }
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
                 // 13.11.2026: «какие-то слова не допечатываются»).
@@ -542,6 +544,7 @@ final class SessionViewModel {
         guard let sessionID = activeSessionID else { return }
         do {
             let response = try await apiClient.snapshot(sessionID: sessionID)
+            guard activeSessionID == sessionID else { return }
             installSnapshot(response.session, preservingCursor: true)
         } catch {
             errorMessage = error.localizedDescription
