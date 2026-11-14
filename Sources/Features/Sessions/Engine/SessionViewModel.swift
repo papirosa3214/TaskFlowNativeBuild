@@ -61,6 +61,7 @@ final class SessionViewModel {
     /// снимок целиком вместо пропущенных кусков. Тогда по концу хода текст
     /// берём из снимка, а не оставляем ход с дырой.
     private var liveTurnHasGaps = false
+    private var sessionGeneration: UInt64 = 0
 
     /// Лента для экрана: история, живые реплики и ещё не подтверждённое
     /// сообщение владельца в конце, пока сервер не прислал его сам.
@@ -328,9 +329,11 @@ final class SessionViewModel {
     /// Перечитать снимок сессии (после голосового разговора реплики голоса
     /// пишет сервер мимо потока событий).
     func refresh() async {
-        guard let id = activeSessionID,
-              let response = try? await apiClient.snapshot(sessionID: id),
-              activeSessionID == id else { return }
+        guard let id = activeSessionID else { return }
+        let generation = sessionGeneration
+        guard let response = try? await apiClient.snapshot(sessionID: id),
+              activeSessionID == id, sessionGeneration == generation,
+              response.session.id == id else { return }
         installSnapshot(response.session)
     }
 
@@ -514,10 +517,11 @@ final class SessionViewModel {
 
     private func recoverAfterReconnect() async {
         guard let sessionID = activeSessionID else { return }
+        let generation = sessionGeneration
         do {
             if let cursor = state.lastCursor {
                 let payload = try await apiClient.events(sessionID: sessionID, after: cursor)
-                guard activeSessionID == sessionID else { return }
+                guard activeSessionID == sessionID, sessionGeneration == generation else { return }
                 // Догнанные куски — и в живой ход: раньше они шли только в
                 // состояние, и на экране в ответе пропадали слова (владелец
                 // 13.11.2026: «какие-то слова не допечатываются»).
@@ -542,9 +546,11 @@ final class SessionViewModel {
 
     private func refreshSnapshot() async {
         guard let sessionID = activeSessionID else { return }
+        let generation = sessionGeneration
         do {
             let response = try await apiClient.snapshot(sessionID: sessionID)
-            guard activeSessionID == sessionID else { return }
+            guard activeSessionID == sessionID, sessionGeneration == generation,
+                  response.session.id == sessionID else { return }
             installSnapshot(response.session, preservingCursor: true)
         } catch {
             errorMessage = error.localizedDescription
@@ -575,7 +581,10 @@ final class SessionViewModel {
         // Ход принадлежит открытой сессии: живая разметка читается только
         // своим ходом, даже если два ответа совпали текстом (владелец 14.11.2026).
         // Другая сессия — другой ход: элементы и область прежнего сбрасываются.
-        if previousSessionID != snapshot.id { isLiveTurnStopped = false }
+        if previousSessionID != snapshot.id {
+            sessionGeneration &+= 1
+            isLiveTurnStopped = false
+        }
         liveTurn.bind(sessionID: snapshot.id)
         // Ход закончен — его шаги уже в записях снимка. Напечатанный ход
         // остаётся на экране как есть, без подмены записями снимка (владелец
